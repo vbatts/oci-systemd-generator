@@ -17,25 +17,18 @@ var (
 	flDebug    = flag.Bool("debug", false, "enable debug output")
 )
 
-var exampleConfig = `
-[system]
-#imagelayoutdir=/var/lib/oci/imagelayout
-#extractdir=/var/lib/oci/extract
-
-imagelayoutdir=/home/vbatts/oci/layouts/
-extractdir=/home/vbatts/oci/extracts/
-
-`
 var DefaultConfig = []*unit.UnitOption{
 	&unit.UnitOption{
 		Section: "system",
 		Name:    "imagelayoutdir",
 		Value:   "/home/vbatts/oci/layouts",
+		//Value:   "/var/lib/oci/imagelayout",
 	},
 	&unit.UnitOption{
 		Section: "system",
 		Name:    "extractdir",
 		Value:   "/home/vbatts/oci/extracts",
+		//Value:   "/var/lib/oci/extract",
 	},
 }
 
@@ -64,7 +57,8 @@ func main() {
 		return
 	}
 
-	var options []*unit.UnitOption
+	var options []*unit.UnitOption = DefaultConfig
+	// don't fail if the provided config file path does not exist, just use the DefaultConfig
 	if *flConfig != "" {
 		if _, err := os.Stat(*flConfig); !os.IsNotExist(err) {
 			var fh *os.File
@@ -82,8 +76,9 @@ func main() {
 			}
 			fh.Close()
 		}
-	} else {
-		options = DefaultConfig
+	}
+	if os.Getenv("DEBUG") != "" {
+		fmt.Printf("DEBUG: options: %q\n", options)
 	}
 
 	var imagelayoutdir, extractdir string
@@ -97,24 +92,19 @@ func main() {
 			}
 		}
 	}
-	if os.Getenv("DEBUG") != "" {
-		fmt.Printf("imagelayoutdir: %q\n", imagelayoutdir)
-		fmt.Printf("extractdir: %q\n", extractdir)
-	}
-
 	// Walk imagelayoutdir to find directories that have a refs and blobs dir
 
 	var layout Layout
-	println("farts")
 	layout, err = WalkForLayouts(imagelayoutdir)
 	if err != nil {
 		isErr = true
 		return
 	}
-
 	if os.Getenv("DEBUG") != "" {
-		fmt.Printf("%#v\n", layout)
+		fmt.Printf("%q\n", layout)
 	}
+
+	_ = extractdir
 
 	// For each imagelayout determine if it has been extracted.
 	// If if hasn't beenen extracted, then apply it to same namespace in extractdir.
