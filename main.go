@@ -3,13 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/coreos/go-systemd/unit"
 )
 
 var (
@@ -75,30 +72,28 @@ func main() {
 			fh.Close()
 		}
 	}
-	if os.Getenv("DEBUG") != "" {
-		fmt.Printf("DEBUG: cfg: %q\n", cfg)
-	}
+	Debugf("cfg: %q\n", cfg)
 
 	// Walk cfg.ImageLayoutDir to find directories that have a refs and blobs dir
-
-	var layouts Layout
+	var layouts Layouts
 	layouts, err = WalkForLayouts(cfg.ImageLayoutDir)
 	if err != nil {
 		isErr = true
 		return
 	}
 
-	for layout := range layouts {
-		if os.Getenv("DEBUG") != "" {
-			fmt.Printf("%q\n", layout)
-		}
+	for name, layout := range layouts {
+		Debugf("%q\n", name)
 		// Check the OCI layout version
-		if _, err := os.Stat(filepath.Join(cfg.ImageLayoutDir, layout, "oci-layout")); os.IsNotExist(err) {
-			fmt.Printf("WARN: %q does not have an oci-layout file\n", layout)
+		if _, err := os.Stat(filepath.Join(cfg.ImageLayoutDir, name, "oci-layout")); os.IsNotExist(err) {
+			fmt.Printf("WARN: %q does not have an oci-layout file\n", name)
 		}
-		fmt.Println(layout)
+		refs, err := layout.Refs()
+		if err == nil {
+			fmt.Println(name)
+			fmt.Printf("\t%q\n", refs)
+		}
 	}
-	_ = cfg.ExtractDir
 
 	// For each imagelayout determine if it has been extracted.
 	// If if hasn't beenen extracted, then apply it to same namespace in extractdir.
@@ -125,73 +120,4 @@ func main() {
 	}
 
 	fmt.Println(dirNormal, dirEarly, dirLate)
-}
-
-// OCIGenConfig is the configurations for generating systemd unit files from OCI image layouts
-type OCIGenConfig struct {
-	ImageLayoutDir string
-	ExtractDir     string
-}
-
-// LoadConfigFromOptions reads from an INI style set of options
-func LoadConfigFromOptions(r io.Reader) (*OCIGenConfig, error) {
-	options, err := unit.Deserialize(r)
-	if err != nil {
-		return nil, err
-	}
-	cfg := OCIGenConfig{}
-	for _, opt := range options {
-		if opt.Section == "system" {
-			switch opt.Name {
-			case "imagelayoutdir":
-				cfg.ImageLayoutDir = opt.Value
-			case "extractdir":
-				cfg.ExtractDir = opt.Value
-			}
-		}
-	}
-
-	return &cfg, nil
-}
-
-type Layout map[string]interface{}
-
-func WalkForLayouts(rootpath string) (layout Layout, err error) {
-	layout = Layout{}
-	err = filepath.Walk(rootpath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			return nil
-		}
-		var (
-			altDir   string
-			basename = filepath.Base(path)
-			dirname  = filepath.Dir(path)
-		)
-		switch basename {
-		case "refs":
-			altDir = filepath.Join(dirname, "blobs")
-		case "blobs":
-			altDir = filepath.Join(dirname, "refs")
-		default:
-			return nil
-		}
-
-		if altInfo, err := os.Lstat(altDir); err != nil || !altInfo.IsDir() {
-			// either this is an error OR it is nil because the directory is not a directory
-			return err
-		}
-
-		l, err := filepath.Rel(rootpath, dirname)
-		if err != nil {
-			return err
-		}
-		if _, ok := layout[l]; !ok {
-			layout[l] = nil
-		}
-		return nil
-	})
-	return layout, err
 }
