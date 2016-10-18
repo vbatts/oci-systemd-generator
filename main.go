@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/coreos/go-systemd/unit"
 )
@@ -17,20 +18,13 @@ var (
 	flDebug    = flag.Bool("debug", false, "enable debug output")
 )
 
-var DefaultConfig = []*unit.UnitOption{
-	&unit.UnitOption{
-		Section: "system",
-		Name:    "imagelayoutdir",
-		Value:   "/home/vbatts/oci/layouts",
-		//Value:   "/var/lib/oci/imagelayout",
-	},
-	&unit.UnitOption{
-		Section: "system",
-		Name:    "extractdir",
-		Value:   "/home/vbatts/oci/extracts",
-		//Value:   "/var/lib/oci/extract",
-	},
-}
+var DefaultConfig = `
+[system]
+imagelayoutdir = /home/vbatts/oci/layouts
+extractdir = /home/vbatts/oci/extracts
+#imagelayoutdir = /var/lib/oci/imagelayout
+#extractdir = /var/lib/oci/extract
+`
 
 func main() {
 	var isErr bool
@@ -49,15 +43,20 @@ func main() {
 	}
 
 	if *flGenerate {
-		rdr := unit.Serialize(DefaultConfig)
-		if _, err = io.Copy(os.Stdout, rdr); err != nil {
+		if _, err = os.Stdout.WriteString(DefaultConfig); err != nil {
 			isErr = true
 			return
 		}
 		return
 	}
 
-	var options []*unit.UnitOption = DefaultConfig
+	var cfg *OCIGenConfig
+	// load default config
+	cfg, err = LoadConfigFromOptions(strings.NewReader(DefaultConfig))
+	if err != nil {
+		isErr = true
+		return
+	}
 	// don't fail if the provided config file path does not exist, just use the DefaultConfig
 	if *flConfig != "" {
 		if _, err := os.Stat(*flConfig); !os.IsNotExist(err) {
@@ -67,10 +66,9 @@ func main() {
 				isErr = true
 				return
 			}
-			options, err = unit.Deserialize(fh)
+			cfg, err = LoadConfigFromOptions(fh)
 			if err != nil {
 				fh.Close()
-				println(err.Error())
 				isErr = true
 				return
 			}
@@ -78,38 +76,38 @@ func main() {
 		}
 	}
 	if os.Getenv("DEBUG") != "" {
-		fmt.Printf("DEBUG: options: %q\n", options)
+		fmt.Printf("DEBUG: cfg: %q\n", cfg)
 	}
 
-	var imagelayoutdir, extractdir string
-	for _, opt := range options {
-		if opt.Section == "system" {
-			switch opt.Name {
-			case "imagelayoutdir":
-				imagelayoutdir = opt.Value
-			case "extractdir":
-				extractdir = opt.Value
-			}
-		}
-	}
-	// Walk imagelayoutdir to find directories that have a refs and blobs dir
+	// Walk cfg.ImageLayoutDir to find directories that have a refs and blobs dir
 
-	var layout Layout
-	layout, err = WalkForLayouts(imagelayoutdir)
+	var layouts Layout
+	layouts, err = WalkForLayouts(cfg.ImageLayoutDir)
 	if err != nil {
 		isErr = true
 		return
 	}
-	if os.Getenv("DEBUG") != "" {
-		fmt.Printf("%q\n", layout)
-	}
 
-	_ = extractdir
+	for layout := range layouts {
+		if os.Getenv("DEBUG") != "" {
+			fmt.Printf("%q\n", layout)
+		}
+		// Check the OCI layout version
+		if _, err := os.Stat(filepath.Join(cfg.ImageLayoutDir, layout, "oci-layout")); os.IsNotExist(err) {
+			fmt.Printf("WARN: %q does not have an oci-layout file\n", layout)
+		}
+		fmt.Println(layout)
+	}
+	_ = cfg.ExtractDir
 
 	// For each imagelayout determine if it has been extracted.
 	// If if hasn't beenen extracted, then apply it to same namespace in extractdir.
 	// If it has been extracted, then produce a unit file to os.Args[1,2,3]
 
+	if flag.NArg() == 0 {
+		fmt.Println("INFO: no paths provided, not generating unit files.")
+		return
+	}
 	if flag.NArg() > 3 {
 		isErr = true
 		err = fmt.Errorf("Expected 3 or fewer paths, but got %d. See SYSTEMD.GENERATOR(7)", flag.NArg())
@@ -127,6 +125,33 @@ func main() {
 	}
 
 	fmt.Println(dirNormal, dirEarly, dirLate)
+}
+
+// OCIGenConfig is the configurations for generating systemd unit files from OCI image layouts
+type OCIGenConfig struct {
+	ImageLayoutDir string
+	ExtractDir     string
+}
+
+// LoadConfigFromOptions reads from an INI style set of options
+func LoadConfigFromOptions(r io.Reader) (*OCIGenConfig, error) {
+	options, err := unit.Deserialize(r)
+	if err != nil {
+		return nil, err
+	}
+	cfg := OCIGenConfig{}
+	for _, opt := range options {
+		if opt.Section == "system" {
+			switch opt.Name {
+			case "imagelayoutdir":
+				cfg.ImageLayoutDir = opt.Value
+			case "extractdir":
+				cfg.ExtractDir = opt.Value
+			}
+		}
+	}
+
+	return &cfg, nil
 }
 
 type Layout map[string]interface{}
