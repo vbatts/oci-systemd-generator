@@ -1,8 +1,12 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	_ "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // Layouts is a collections OCI image layouts
@@ -13,6 +17,26 @@ type Layouts map[string]Layout
 type Layout struct {
 	Root string
 	Name string
+}
+
+// ociImageLayoutVersion XXX this struct is not specified in the specs-go/ package?
+type ociImageLayoutVersion struct {
+	ImageLayoutVersion string `json:"imageLayoutVersion"`
+}
+
+// OCIVersion reads the OCI image layout version for this layout
+func (l Layout) OCIVersion() (string, error) {
+	buf, err := ioutil.ReadFile(filepath.Join(l.Root, l.Name, "oci-layout"))
+	if err != nil {
+		return "", err
+	}
+
+	var ociVersion ociImageLayoutVersion
+	if err := json.Unmarshal(buf, &ociVersion); err != nil {
+		return "", err
+	}
+
+	return ociVersion.ImageLayoutVersion, nil
 }
 
 // Refs gives the path to all regular files or symlinks in this layout's "refs" directory

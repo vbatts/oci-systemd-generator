@@ -81,10 +81,16 @@ func main() {
 			fmt.Printf("WARN: %q does not have an oci-layout file\n", name)
 		}
 		refs, err := layout.Refs()
-		if err == nil {
-			Debugf(name)
-			Debugf("\t%q", refs)
+		if err != nil {
+			continue
 		}
+		blobs, err := layout.Blobs()
+		if err != nil {
+			continue
+		}
+		Debugf(name)
+		Debugf("\trefs: %q", refs)
+		Debugf("\tblobs: %q", blobs)
 	}
 
 	// For each imagelayout determine if it has been extracted.
