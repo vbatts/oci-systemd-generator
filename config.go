@@ -6,6 +6,7 @@ import (
 	"github.com/coreos/go-systemd/unit"
 )
 
+// DefaultConfig is the base for looking at the paths this tool will operate on
 var DefaultConfig = `
 [system]
 imagelayoutdir = /home/vbatts/oci/layouts
