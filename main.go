@@ -15,14 +15,6 @@ var (
 	flDebug    = flag.Bool("debug", false, "enable debug output")
 )
 
-var DefaultConfig = `
-[system]
-imagelayoutdir = /home/vbatts/oci/layouts
-extractdir = /home/vbatts/oci/extracts
-#imagelayoutdir = /var/lib/oci/imagelayout
-#extractdir = /var/lib/oci/extract
-`
-
 func main() {
 	var isErr bool
 	var err error
@@ -36,6 +28,7 @@ func main() {
 	flag.Parse()
 
 	if *flDebug {
+		// this is used by Debugf()
 		os.Setenv("DEBUG", "1")
 	}
 
@@ -72,7 +65,7 @@ func main() {
 			fh.Close()
 		}
 	}
-	Debugf("cfg: %q\n", cfg)
+	Debugf("cfg: %q", cfg)
 
 	// Walk cfg.ImageLayoutDir to find directories that have a refs and blobs dir
 	var layouts Layouts
@@ -83,15 +76,14 @@ func main() {
 	}
 
 	for name, layout := range layouts {
-		Debugf("%q\n", name)
 		// Check the OCI layout version
 		if _, err := os.Stat(filepath.Join(cfg.ImageLayoutDir, name, "oci-layout")); os.IsNotExist(err) {
 			fmt.Printf("WARN: %q does not have an oci-layout file\n", name)
 		}
 		refs, err := layout.Refs()
 		if err == nil {
-			fmt.Println(name)
-			fmt.Printf("\t%q\n", refs)
+			Debugf(name)
+			Debugf("\t%q", refs)
 		}
 	}
 

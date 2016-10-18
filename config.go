@@ -6,6 +6,14 @@ import (
 	"github.com/coreos/go-systemd/unit"
 )
 
+var DefaultConfig = `
+[system]
+imagelayoutdir = /home/vbatts/oci/layouts
+extractdir = /home/vbatts/oci/extracts
+#imagelayoutdir = /var/lib/oci/imagelayout
+#extractdir = /var/lib/oci/extract
+`
+
 // OCIGenConfig is the configurations for generating systemd unit files from OCI image layouts
 type OCIGenConfig struct {
 	ImageLayoutDir string
