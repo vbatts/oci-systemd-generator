@@ -22,20 +22,55 @@ type Layout struct {
 }
 
 // "./sha256/ed2dca7ba0aa32384f2f5560513dbb0325c8e213b75eb662055e8bd1db7ac974" -> "sha256:ed2dca7ba0aa32384f2f5560513dbb0325c8e213b75eb662055e8bd1db7ac974"
-func pathToDigest(path string) string {
+func pathToDigest(path string) *Digest {
 	chunks := strings.Split(filepath.Clean(path), "/")
 	if len(chunks) > 1 && chunks[0] == nameBlobs {
 		chunks = chunks[1:]
 	}
 	if len(chunks) != 2 {
+		return nil
+	}
+	return &Digest{Name: chunks[0] + digestSeparator + chunks[1]}
+}
+
+// Digest for name to digest mapping and validating the blob at the address is
+// actually the expected size.
+type Digest struct {
+	Name   string
+	Layout *Layout
+}
+
+// HashName provides just the hash name portion of the digest string (e.g. "sha256:ed2dca..." -> "sha256")
+func (d Digest) HashName() string {
+	chunks := strings.SplitN(d.Name, digestSeparator, 2)
+	if len(chunks) != 2 {
 		return ""
 	}
-	return chunks[0] + digestSeparator + chunks[1]
+	return chunks[0]
+}
+
+// Sum calculates the checksum of the backing blob for this digest, with the prescribed hash.
+func (d Digest) Sum() (string, error) {
+	fh, err := d.Layout.GetBlob(d)
+	if err != nil {
+		return "", err
+	}
+	return SumContent(d.HashName(), fh)
+}
+
+// IsValid returns whether the backing blob checksum is the same as the referenced digest.
+func (d Digest) IsValid() (bool, error) {
+	sum, err := d.Sum()
+	if err != nil {
+		return false, err
+	}
+
+	return d.Name == d.HashName()+digestSeparator+sum, nil
 }
 
 // "sha256:ed2dca7ba0aa32384f2f5560513dbb0325c8e213b75eb662055e8bd1db7ac974" -> "./sha256/ed2dca7ba0aa32384f2f5560513dbb0325c8e213b75eb662055e8bd1db7ac974"
-func digestToPath(digest string) string {
-	chunks := strings.SplitN(digest, digestSeparator, 2)
+func digestToPath(digest Digest) string {
+	chunks := strings.SplitN(digest.Name, digestSeparator, 2)
 	if len(chunks) != 2 {
 		return ""
 	}
@@ -51,7 +86,7 @@ const (
 )
 
 // GetBlob returns the stream for a blob addressed by it's digest (`sha256:abcde123456...`)
-func (l Layout) GetBlob(digest string) (io.ReadCloser, error) {
+func (l Layout) GetBlob(digest Digest) (io.ReadCloser, error) {
 	path := filepath.Join(l.Root, l.Name, nameBlobs, digestToPath(digest))
 	if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
 		return nil, err
@@ -99,18 +134,19 @@ func (l Layout) Refs() ([]string, error) {
 }
 
 // Blobs gives the path to all regular files or symlinks in this layout's "blobs" directory
-func (l Layout) Blobs() ([]string, error) {
+func (l Layout) Blobs() ([]Digest, error) {
 	paths, err := findFilesOrSymlink(filepath.Join(l.Root, l.Name, nameBlobs))
 	if err != nil {
 		return nil, err
 	}
-	digests := []string{}
+	digests := []Digest{}
 	for _, path := range paths {
 		digest := pathToDigest(path)
-		if digest == "" {
+		if digest == nil {
 			continue
 		}
-		digests = append(digests, digest)
+		digest.Layout = &l
+		digests = append(digests, *digest)
 	}
 	return digests, nil
 }

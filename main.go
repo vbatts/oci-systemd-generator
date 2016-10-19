@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -91,6 +92,21 @@ func main() {
 		}
 		Debugf(name)
 		Debugf("\tnum blobs: %d", len(blobs))
+		allValid := true
+		for _, blob := range blobs {
+			valid, err := blob.IsValid()
+			if err != nil {
+				break
+			}
+			if !valid {
+				allValid = false
+			}
+		}
+		if allValid {
+			Debugf("\tblob checksums: PASS")
+		} else {
+			Debugf("\tblob checksums: FAILED")
+		}
 
 		Debugf("\trefs:")
 		for _, ref := range refs {
@@ -101,7 +117,26 @@ func main() {
 			Debugf("\t\t%s: %#v", ref, desc)
 			if desc.MediaType != v1.MediaTypeImageManifest && desc.MediaType != v1.MediaTypeImageManifestList {
 				log.Printf("%q: unsupported Medatype %q, skipping", ref, desc.MediaType)
+				break
 			}
+			if desc.MediaType == v1.MediaTypeImageManifestList {
+				log.Println("TODO: add support for manifest list")
+				continue
+			}
+			manifestFH, err := layout.GetBlob(Digest{Name: desc.Digest})
+			if err != nil {
+				log.Println(err)
+				break
+			}
+			manifest := v1.Manifest{}
+			dec := json.NewDecoder(manifestFH)
+			if err := dec.Decode(&manifest); err != nil {
+				log.Println(err)
+				manifestFH.Close()
+				break
+			}
+			manifestFH.Close()
+			Debugf("%#v", manifest)
 		}
 
 	}
