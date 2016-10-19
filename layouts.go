@@ -12,7 +12,7 @@ import (
 )
 
 // Layouts is a collections OCI image layouts
-type Layouts map[string]Layout
+type Layouts map[string]*Layout
 
 // Layout is an OCI image layout that includes descriptor refs and the content
 // addressible objects pointed to by the descriptors.
@@ -77,6 +77,13 @@ func digestToPath(digest Digest) string {
 	return filepath.Join(chunks[0], chunks[1])
 }
 
+// Manifest carries the layout and ref name, plus the full structure for the OCI image manifest
+type Manifest struct {
+	Layout   *Layout
+	Ref      string
+	Manifest *v1.Manifest
+}
+
 const (
 	nameLayout = "oci-layout"
 	nameBlobs  = "blobs"
@@ -134,7 +141,7 @@ func (l Layout) Refs() ([]string, error) {
 }
 
 // Blobs gives the path to all regular files or symlinks in this layout's "blobs" directory
-func (l Layout) Blobs() ([]Digest, error) {
+func (l *Layout) Blobs() ([]Digest, error) {
 	paths, err := findFilesOrSymlink(filepath.Join(l.Root, l.Name, nameBlobs))
 	if err != nil {
 		return nil, err
@@ -145,7 +152,7 @@ func (l Layout) Blobs() ([]Digest, error) {
 		if digest == nil {
 			continue
 		}
-		digest.Layout = &l
+		digest.Layout = l
 		digests = append(digests, *digest)
 	}
 	return digests, nil
@@ -213,7 +220,7 @@ func WalkForLayouts(rootpath string) (layouts Layouts, err error) {
 			return err
 		}
 		if _, ok := layouts[l]; !ok {
-			layouts[l] = Layout{Root: rootpath, Name: l}
+			layouts[l] = &Layout{Root: rootpath, Name: l}
 		}
 		return nil
 	})

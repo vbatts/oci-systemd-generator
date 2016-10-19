@@ -5,10 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"opencontainers/image-spec/specs-go/v1"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 var (
@@ -77,6 +78,9 @@ func main() {
 		return
 	}
 
+	// Check all the layouts available
+	manifests := []Manifest{}
+layoutLoop:
 	for name, layout := range layouts {
 		// Check the OCI layout version
 		if _, err := os.Stat(filepath.Join(cfg.ImageLayoutDir, name, "oci-layout")); os.IsNotExist(err) {
@@ -99,6 +103,7 @@ func main() {
 				break
 			}
 			if !valid {
+				Debugf("\tblob failed: %q", blob.Name)
 				allValid = false
 			}
 		}
@@ -106,6 +111,7 @@ func main() {
 			Debugf("\tblob checksums: PASS")
 		} else {
 			Debugf("\tblob checksums: FAILED")
+			continue layoutLoop
 		}
 
 		Debugf("\trefs:")
@@ -137,11 +143,14 @@ func main() {
 			}
 			manifestFH.Close()
 			Debugf("%#v", manifest)
+			manifests = append(manifests, Manifest{Layout: layout, Ref: ref, Manifest: &manifest})
 		}
-
 	}
 
 	// For each imagelayout determine if it has been extracted.
+	//for _, manifest := range manifests {
+	//}
+
 	// If if hasn't beenen extracted, then apply it to same namespace in extractdir.
 	// If it has been extracted, then produce a unit file to os.Args[1,2,3]
 
