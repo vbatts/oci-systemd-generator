@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"opencontainers/image-spec/specs-go/v1"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,8 +90,20 @@ func main() {
 			continue
 		}
 		Debugf(name)
-		Debugf("\trefs: %q", refs)
-		Debugf("\tblobs: %q", blobs)
+		Debugf("\tnum blobs: %d", len(blobs))
+
+		Debugf("\trefs:")
+		for _, ref := range refs {
+			desc, err := layout.GetRef(ref)
+			if err != nil {
+				continue
+			}
+			Debugf("\t\t%s: %#v", ref, desc)
+			if desc.MediaType != v1.MediaTypeImageManifest && desc.MediaType != v1.MediaTypeImageManifestList {
+				log.Printf("%q: unsupported Medatype %q, skipping", ref, desc.MediaType)
+			}
+		}
+
 	}
 
 	// For each imagelayout determine if it has been extracted.

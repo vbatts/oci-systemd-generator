@@ -2,11 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
-	_ "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // Layouts is a collections OCI image layouts
@@ -19,14 +21,66 @@ type Layout struct {
 	Name string
 }
 
+// "./sha256/ed2dca7ba0aa32384f2f5560513dbb0325c8e213b75eb662055e8bd1db7ac974" -> "sha256:ed2dca7ba0aa32384f2f5560513dbb0325c8e213b75eb662055e8bd1db7ac974"
+func pathToDigest(path string) string {
+	chunks := strings.Split(filepath.Clean(path), "/")
+	if len(chunks) > 1 && chunks[0] == nameBlobs {
+		chunks = chunks[1:]
+	}
+	if len(chunks) != 2 {
+		return ""
+	}
+	return chunks[0] + digestSeparator + chunks[1]
+}
+
+// "sha256:ed2dca7ba0aa32384f2f5560513dbb0325c8e213b75eb662055e8bd1db7ac974" -> "./sha256/ed2dca7ba0aa32384f2f5560513dbb0325c8e213b75eb662055e8bd1db7ac974"
+func digestToPath(digest string) string {
+	chunks := strings.SplitN(digest, digestSeparator, 2)
+	if len(chunks) != 2 {
+		return ""
+	}
+	return filepath.Join(chunks[0], chunks[1])
+}
+
+const (
+	nameLayout = "oci-layout"
+	nameBlobs  = "blobs"
+	nameRefs   = "refs"
+
+	digestSeparator = ":"
+)
+
+// GetBlob returns the stream for a blob addressed by it's digest (`sha256:abcde123456...`)
+func (l Layout) GetBlob(digest string) (io.ReadCloser, error) {
+	path := filepath.Join(l.Root, l.Name, nameBlobs, digestToPath(digest))
+	if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
+		return nil, err
+	}
+	return os.Open(path)
+}
+
+// GetRef loads the descriptor reference for this OCI image
+func (l Layout) GetRef(name string) (*v1.Descriptor, error) {
+	buf, err := ioutil.ReadFile(filepath.Join(l.Root, l.Name, nameRefs, name))
+	if err != nil {
+		return nil, err
+	}
+	var desc v1.Descriptor
+	if err := json.Unmarshal(buf, &desc); err != nil {
+		return nil, err
+	}
+	return &desc, nil
+}
+
 // ociImageLayoutVersion XXX this struct is not specified in the specs-go/ package?
+// TODO remove after https://github.com/opencontainers/image-spec/pull/393
 type ociImageLayoutVersion struct {
 	ImageLayoutVersion string `json:"imageLayoutVersion"`
 }
 
 // OCIVersion reads the OCI image layout version for this layout
 func (l Layout) OCIVersion() (string, error) {
-	buf, err := ioutil.ReadFile(filepath.Join(l.Root, l.Name, "oci-layout"))
+	buf, err := ioutil.ReadFile(filepath.Join(l.Root, l.Name, nameLayout))
 	if err != nil {
 		return "", err
 	}
@@ -41,12 +95,24 @@ func (l Layout) OCIVersion() (string, error) {
 
 // Refs gives the path to all regular files or symlinks in this layout's "refs" directory
 func (l Layout) Refs() ([]string, error) {
-	return findFilesOrSymlink(filepath.Join(l.Root, l.Name, "refs"))
+	return findFilesOrSymlink(filepath.Join(l.Root, l.Name, nameRefs))
 }
 
 // Blobs gives the path to all regular files or symlinks in this layout's "blobs" directory
 func (l Layout) Blobs() ([]string, error) {
-	return findFilesOrSymlink(filepath.Join(l.Root, l.Name, "blobs"))
+	paths, err := findFilesOrSymlink(filepath.Join(l.Root, l.Name, nameBlobs))
+	if err != nil {
+		return nil, err
+	}
+	digests := []string{}
+	for _, path := range paths {
+		digest := pathToDigest(path)
+		if digest == "" {
+			continue
+		}
+		digests = append(digests, digest)
+	}
+	return digests, nil
 }
 
 func findFilesOrSymlink(basename string) ([]string, error) {
@@ -87,10 +153,10 @@ func WalkForLayouts(rootpath string) (layouts Layouts, err error) {
 			dirname  = filepath.Dir(path)
 		)
 		switch basename {
-		case "refs":
-			altDir = filepath.Join(dirname, "blobs")
-		case "blobs":
-			altDir = filepath.Join(dirname, "refs")
+		case nameRefs:
+			altDir = filepath.Join(dirname, nameBlobs)
+		case nameBlobs:
+			altDir = filepath.Join(dirname, nameRefs)
 		default:
 			return nil
 		}
@@ -100,7 +166,7 @@ func WalkForLayouts(rootpath string) (layouts Layouts, err error) {
 			// so just skip it
 			return nil
 		}
-		if _, err := os.Stat(filepath.Join(dirname, "oci-layout")); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(dirname, nameLayout)); os.IsNotExist(err) {
 			// does not have oci version file, so skip it.
 			Debugf("%q does not have an oci-layout file", dirname)
 			return nil
