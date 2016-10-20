@@ -2,7 +2,7 @@ package extract
 
 import (
 	"crypto"
-	_ "crypto/sha256"
+	_ "crypto/sha256" // this is for the HashMap
 	"errors"
 	"fmt"
 	"io"
@@ -33,10 +33,22 @@ var HashMap = map[string]crypto.Hash{
 	"sha256": crypto.SHA256,
 }
 
-// Extract is the extracted content of an OCI image reference.
+/*
+Extract is the extracted content of an OCI image reference.
+
+The attributes of an extracted image ref are:
+- the "name" - derived of the relative path from presumably /var/lib/oci/layouts/
+- the ref name - derived from the `./refs/<name>` file
+
+The ref is a descriptor pointing to a checksum of a manifest.  Multiple refs
+may point to the same checksum, so citing this per the _checksum_ would be
+cleaner, and then just symlink the "<name>@<refname>" to a checksummed
+directory.
+*/
 type Extract struct {
-	Root string
-	Name string
+	Root   string
+	Name   string
+	Digest string
 }
 
 // WalkForExtracts walks a rootpath looking for all directories that match an

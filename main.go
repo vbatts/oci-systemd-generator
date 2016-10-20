@@ -132,7 +132,7 @@ layoutLoop:
 				log.Println("TODO: add support for manifest list")
 				continue
 			}
-			manifestFH, err := l.GetBlob(layout.Digest{Name: desc.Digest})
+			manifestFH, err := l.GetBlob(layout.DigestRef{Name: desc.Digest})
 			if err != nil {
 				log.Println(err)
 				break
