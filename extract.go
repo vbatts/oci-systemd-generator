@@ -33,4 +33,16 @@ var HashMap = map[string]crypto.Hash{
 	"sha256": crypto.SHA256,
 }
 
+// Extract is the extracted content of an OCI image reference.
+type Extract struct {
+	Root string
+	Name string
+}
+
+// WalkForExtracts walks a rootpath looking for all directories that match an
+// extracted OCI image reference.
+func WalkForExtracts(rootpath string) (extracts []Extract, err error) {
+	return nil, nil
+}
+
 // TODO Perhaps have an easy streamer for calculating the checksum of a stream

@@ -180,7 +180,9 @@ func findFilesOrSymlink(basename string) ([]string, error) {
 	return files, nil
 }
 
-// WalkForLayouts looks through rootpath for OCI image-layout directories. Namely a directory that has "refs" and "blobs" directory, and an oci-layout file.
+// WalkForLayouts looks through rootpath for OCI image-layout directories.
+// Namely a directory that has "refs" and "blobs" directory, and an oci-layout
+// file.
 func WalkForLayouts(rootpath string) (layouts Layouts, err error) {
 	layouts = Layouts{}
 	err = filepath.Walk(rootpath, func(path string, info os.FileInfo, err error) error {
