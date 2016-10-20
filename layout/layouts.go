@@ -1,4 +1,4 @@
-package main
+package layout
 
 import (
 	"encoding/json"
@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/vbatts/oci-systemd-generator/extract"
+	"github.com/vbatts/oci-systemd-generator/util"
 )
 
 // Layouts is a collections OCI image layouts
@@ -55,7 +57,7 @@ func (d Digest) Sum() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return SumContent(d.HashName(), fh)
+	return extract.SumContent(d.HashName(), fh)
 }
 
 // IsValid returns whether the backing blob checksum is the same as the referenced digest.
@@ -75,13 +77,6 @@ func digestToPath(digest Digest) string {
 		return ""
 	}
 	return filepath.Join(chunks[0], chunks[1])
-}
-
-// Manifest carries the layout and ref name, plus the full structure for the OCI image manifest
-type Manifest struct {
-	Layout   *Layout
-	Ref      string
-	Manifest *v1.Manifest
 }
 
 const (
@@ -213,7 +208,7 @@ func WalkForLayouts(rootpath string) (layouts Layouts, err error) {
 		}
 		if _, err := os.Stat(filepath.Join(dirname, nameLayout)); os.IsNotExist(err) {
 			// does not have oci version file, so skip it.
-			Debugf("%q does not have an oci-layout file", dirname)
+			util.Debugf("%q does not have an oci-layout file", dirname)
 			return nil
 		}
 

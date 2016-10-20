@@ -10,6 +10,9 @@ import (
 	"strings"
 
 	"github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/vbatts/oci-systemd-generator/config"
+	"github.com/vbatts/oci-systemd-generator/layout"
+	"github.com/vbatts/oci-systemd-generator/util"
 )
 
 var (
@@ -36,16 +39,16 @@ func main() {
 	}
 
 	if *flGenerate {
-		if _, err = os.Stdout.WriteString(DefaultConfig); err != nil {
+		if _, err = os.Stdout.WriteString(config.DefaultConfig); err != nil {
 			isErr = true
 			return
 		}
 		return
 	}
 
-	var cfg *OCIGenConfig
+	var cfg *config.OCIGenConfig
 	// load default config
-	cfg, err = LoadConfigFromOptions(strings.NewReader(DefaultConfig))
+	cfg, err = config.LoadConfigFromOptions(strings.NewReader(config.DefaultConfig))
 	if err != nil {
 		isErr = true
 		return
@@ -59,7 +62,7 @@ func main() {
 				isErr = true
 				return
 			}
-			cfg, err = LoadConfigFromOptions(fh)
+			cfg, err = config.LoadConfigFromOptions(fh)
 			if err != nil {
 				fh.Close()
 				isErr = true
@@ -68,34 +71,34 @@ func main() {
 			fh.Close()
 		}
 	}
-	Debugf("cfg: %q", cfg)
+	util.Debugf("cfg: %q", cfg)
 
 	// Walk cfg.ImageLayoutDir to find directories that have a refs and blobs dir
-	var layouts Layouts
-	layouts, err = WalkForLayouts(cfg.ImageLayoutDir)
+	var layouts layout.Layouts
+	layouts, err = layout.WalkForLayouts(cfg.ImageLayoutDir)
 	if err != nil {
 		isErr = true
 		return
 	}
 
 	// Check all the layouts available
-	manifests := []Manifest{}
+	manifests := []layout.Manifest{}
 layoutLoop:
-	for name, layout := range layouts {
+	for name, l := range layouts {
 		// Check the OCI layout version
 		if _, err := os.Stat(filepath.Join(cfg.ImageLayoutDir, name, "oci-layout")); os.IsNotExist(err) {
 			fmt.Printf("WARN: %q does not have an oci-layout file\n", name)
 		}
-		refs, err := layout.Refs()
+		refs, err := l.Refs()
 		if err != nil {
 			continue
 		}
-		blobs, err := layout.Blobs()
+		blobs, err := l.Blobs()
 		if err != nil {
 			continue
 		}
-		Debugf(name)
-		Debugf("\tnum blobs: %d", len(blobs))
+		util.Debugf(name)
+		util.Debugf("\tnum blobs: %d", len(blobs))
 		allValid := true
 		for _, blob := range blobs {
 			valid, err := blob.IsValid()
@@ -103,24 +106,24 @@ layoutLoop:
 				break
 			}
 			if !valid {
-				Debugf("\tblob failed: %q", blob.Name)
+				util.Debugf("\tblob failed: %q", blob.Name)
 				allValid = false
 			}
 		}
 		if allValid {
-			Debugf("\tblob checksums: PASS")
+			util.Debugf("\tblob checksums: PASS")
 		} else {
-			Debugf("\tblob checksums: FAILED")
+			util.Debugf("\tblob checksums: FAILED")
 			continue layoutLoop
 		}
 
-		Debugf("\trefs:")
+		util.Debugf("\trefs:")
 		for _, ref := range refs {
-			desc, err := layout.GetRef(ref)
+			desc, err := l.GetRef(ref)
 			if err != nil {
 				continue
 			}
-			Debugf("\t\t%s: %#v", ref, desc)
+			util.Debugf("\t\t%s: %#v", ref, desc)
 			if desc.MediaType != v1.MediaTypeImageManifest && desc.MediaType != v1.MediaTypeImageManifestList {
 				log.Printf("%q: unsupported Medatype %q, skipping", ref, desc.MediaType)
 				break
@@ -129,7 +132,7 @@ layoutLoop:
 				log.Println("TODO: add support for manifest list")
 				continue
 			}
-			manifestFH, err := layout.GetBlob(Digest{Name: desc.Digest})
+			manifestFH, err := l.GetBlob(layout.Digest{Name: desc.Digest})
 			if err != nil {
 				log.Println(err)
 				break
@@ -142,8 +145,8 @@ layoutLoop:
 				break
 			}
 			manifestFH.Close()
-			Debugf("%#v", manifest)
-			manifests = append(manifests, Manifest{Layout: layout, Ref: ref, Manifest: &manifest})
+			util.Debugf("%#v", manifest)
+			manifests = append(manifests, layout.Manifest{Layout: l, Ref: ref, Manifest: &manifest})
 		}
 	}
 
