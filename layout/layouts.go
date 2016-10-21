@@ -109,12 +109,6 @@ func (l Layout) GetRef(name string) (*v1.Descriptor, error) {
 	return &desc, nil
 }
 
-// ociImageLayoutVersion XXX this struct is not specified in the specs-go/ package?
-// TODO remove after https://github.com/opencontainers/image-spec/pull/393
-type ociImageLayoutVersion struct {
-	ImageLayoutVersion string `json:"imageLayoutVersion"`
-}
-
 // OCIVersion reads the OCI image layout version for this layout
 func (l Layout) OCIVersion() (string, error) {
 	buf, err := ioutil.ReadFile(filepath.Join(l.Root, l.Name, nameLayout))
@@ -122,12 +116,12 @@ func (l Layout) OCIVersion() (string, error) {
 		return "", err
 	}
 
-	var ociVersion ociImageLayoutVersion
-	if err := json.Unmarshal(buf, &ociVersion); err != nil {
+	var ociImageLayout v1.ImageLayout
+	if err := json.Unmarshal(buf, &ociImageLayout); err != nil {
 		return "", err
 	}
 
-	return ociVersion.ImageLayoutVersion, nil
+	return ociImageLayout.Version, nil
 }
 
 // Refs gives the path to all regular files or symlinks in this layout's "refs" directory
