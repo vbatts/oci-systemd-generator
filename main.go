@@ -150,12 +150,33 @@ layoutLoop:
 		}
 	}
 
+	var configs []*layout.Config
 	// For each imagelayout determine if it has been extracted.
-	//for _, manifest := range manifests {
-	//}
+	for _, manifest := range manifests {
+		if manifest.Manifest.Config.MediaType != v1.MediaTypeImageConfig {
+			log.Printf("expected %q; got %q; skipping ...", v1.MediaTypeImageConfig, manifest.Manifest.Config.MediaType)
+			continue
+		}
+		var config v1.Image
+		digestRef := layout.DigestRef{Name: manifest.Manifest.Config.Digest}
+		configFH, err := manifest.Layout.GetBlob(digestRef)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		dec := json.NewDecoder(configFH)
+		if err := dec.Decode(&config); err != nil {
+			log.Println(err)
+		}
+		configs = append(configs, &layout.Config{Manifest: &manifest, Layout: manifest.Layout, Ref: manifest.Ref, ImageConfig: &config})
+	}
+	util.Debugf("%#v", configs)
 
 	// If if hasn't beenen extracted, then apply it to same namespace in extractdir.
-	// If it has been extracted, then produce a unit file to os.Args[1,2,3]
+	// If it has been extracted,
+	// and has something in the .config.Entrypoint,.config.Cmd,
+	// (otherwise defautl to exec /sbin/init?)
+	// then produce a unit file to os.Args[1,2,3]
 
 	if flag.NArg() == 0 {
 		fmt.Println("INFO: no paths provided, not generating unit files.")

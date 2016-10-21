@@ -34,26 +34,43 @@ var HashMap = map[string]crypto.Hash{
 }
 
 /*
-Extract is the extracted content of an OCI image reference.
+Layout is the extracted content of an OCI image reference.
 
 The attributes of an extracted image ref are:
-- the "name" - derived of the relative path from presumably /var/lib/oci/layouts/
+- the "name" - derived of the relative path from presumably /var/lib/oci/imagelayouts/
 - the ref name - derived from the `./refs/<name>` file
 
 The ref is a descriptor pointing to a checksum of a manifest.  Multiple refs
 may point to the same checksum, so citing this per the _checksum_ would be
 cleaner, and then just symlink the "<name>@<refname>" to a checksummed
 directory.
+
+The /var/lib/oci/extract/ hierarchy is:
+    |- dirs/
+    |  |- chainID/
+    |     |- sha256/
+    |        |- ba/
+    |           |- baabaab1acc24ee9/
+    |- manifest/
+    |  |- sha256/
+    |     |- ea/
+    |        |- ea7beefea7beefd0ee7
+    |- names/
+       |- example.com/myapp/
+          |- ref/
+          |  |- stable -> ../../../manifest/sha256/ea/ea7beefea7beefd0ee7
+          |- rootfs/ -> ../../dirs/chainID/sha256/ba/baabaab1acc24ee9/
+
+Where the dir
 */
-type Extract struct {
-	Root   string
-	Name   string
-	Digest string
+type Layout struct {
+	Root string
+	Name string
 }
 
 // WalkForExtracts walks a rootpath looking for all directories that match an
 // extracted OCI image reference.
-func WalkForExtracts(rootpath string) (extracts []Extract, err error) {
+func WalkForExtracts(rootpath string) (extracts []Layout, err error) {
 	return nil, nil
 }
 

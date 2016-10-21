@@ -11,7 +11,7 @@ var DefaultConfig = `
 [system]
 imagelayoutdir = /home/vbatts/oci/layouts
 extractdir = /home/vbatts/oci/extracts
-#imagelayoutdir = /var/lib/oci/imagelayout
+#imagelayoutdir = /var/lib/oci/imagelayouts
 #extractdir = /var/lib/oci/extract
 `
 
