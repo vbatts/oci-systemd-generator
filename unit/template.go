@@ -20,9 +20,18 @@ var DefaultOptions = []*unit.UnitOption{
 	&unit.UnitOption{Section: "Service", Name: "DevicePolicy", Value: "closed"},
 }
 
+// RootDirectory is the chroot path for this unit file (see also systemd.exec(5)).
+func RootDirectory(path string) (*unit.UnitOption, error) {
+	// if the command is not an absolute path
+	if !strings.HasPrefix(path, "/") {
+		return nil, fmt.Errorf("expected absolute path; got %q", path)
+	}
+	return unit.NewUnitOption("Service", "RootDirectory", path), nil
+}
+
 // ExecStart provides the unit file option for ExecStart=, given a command string
 func ExecStart(cmd string) (*unit.UnitOption, error) {
-	// if the command is not an abosulte path
+	// if the command is not an absolute path
 	if !strings.HasPrefix(cmd, "/") {
 		cmd = fmt.Sprintf(`/bin/sh -c %q`, cmd)
 	}
@@ -32,10 +41,3 @@ func ExecStart(cmd string) (*unit.UnitOption, error) {
 var (
 	shellExecTemplate = template.Must(template.New("shellExec").Parse(`/bin/sh -c "{{.}}"`))
 )
-
-/*
-Needed:
-from systmed.exec(5)
-- RootDirectory=
-
-*/

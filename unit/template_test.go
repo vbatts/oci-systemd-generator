@@ -51,3 +51,26 @@ func TestExecStart(t *testing.T) {
 		t.Errorf("Expected unit value of %q; got %q", expect, u.Value)
 	}
 }
+
+func TestRootDirectory(t *testing.T) {
+	u, err := RootDirectory("../../../hurrr/")
+	if err == nil {
+		t.Errorf("expected error on relative path, but got nil")
+	}
+
+	expect := "/var/lib/oci/extracts/hurr"
+	u, err = RootDirectory(expect)
+	if err != nil {
+		t.Fatalf("expected no error, but got %q", err)
+	}
+
+	if u.Section != "Service" {
+		t.Errorf("Expected unit option in Service; got %q", u.Section)
+	}
+	if u.Name != "RootDirectory" {
+		t.Errorf("Expected unit option of RootDirectory; got %q", u.Name)
+	}
+	if u.Value != expect {
+		t.Errorf("Expected unit value of %q; got %q", expect, u.Value)
+	}
+}
