@@ -42,7 +42,7 @@ The attributes of an extracted image ref are:
 
 The ref is a descriptor pointing to a checksum of a manifest.  Multiple refs
 may point to the same checksum, so citing this per the _checksum_ would be
-cleaner, and then just symlink the "<name>@<refname>" to a checksummed
+cleaner, and then just symlink the <name> and <refname> to a checksummed
 directory.
 
 The /var/lib/oci/extract/ hierarchy is:
