@@ -14,6 +14,6 @@ func TestShellExec(t *testing.T) {
 
 	got := string(buf.Bytes())
 	if got != expect {
-		t.Error("expected %q; got %q", expect, got)
+		t.Errorf("expected %q; got %q", expect, got)
 	}
 }
