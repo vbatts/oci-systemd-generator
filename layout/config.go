@@ -41,7 +41,7 @@ func (c Config) ExecStart() (string, error) {
 		return "/sbin/init", nil
 	}
 
-	// if the command is not an abosulte path
+	// if the command is not an absolute path
 	if !strings.HasPrefix(cmd[0], "/") {
 		return fmt.Sprintf(`/bin/sh -c %q`, strings.Join(cmd, " ")), nil
 	}
