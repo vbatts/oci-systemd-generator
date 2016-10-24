@@ -1,6 +1,10 @@
 package unit
 
-import "github.com/coreos/go-systemd/unit"
+import (
+	"html/template"
+
+	"github.com/coreos/go-systemd/unit"
+)
 
 var DefaultConfig = []*unit.UnitOption{
 	&unit.UnitOption{
@@ -14,3 +18,5 @@ var DefaultConfig = []*unit.UnitOption{
 		Value:   "oci.slice",
 	},
 }
+
+var shellExecTemplate = template.Must(template.New("shellExec").Parse(`/bin/sh -c "{{.}}"`))
