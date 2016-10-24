@@ -173,9 +173,7 @@ layoutLoop:
 	util.Debugf("%#v", configs)
 
 	// If if hasn't beenen extracted, then apply it to same namespace in extractdir.
-	// If it has been extracted,
-	// and has something in the .config.Entrypoint,.config.Cmd,
-	// (otherwise defautl to exec /sbin/init?)
+	// If it has been extracted, check the config's ExecStart()
 	// then produce a unit file to os.Args[1,2,3]
 
 	if flag.NArg() == 0 {
