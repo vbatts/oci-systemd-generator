@@ -10,15 +10,15 @@ import (
 var DefaultConfig = `
 [system]
 imagelayoutdir = /home/vbatts/oci/layouts
-extractdir = /home/vbatts/oci/extracts
+extractsdir = /home/vbatts/oci/extracts
 #imagelayoutdir = /var/lib/oci/imagelayouts
-#extractdir = /var/lib/oci/extract
+#extractsdir = /var/lib/oci/extracts
 `
 
 // OCIGenConfig is the configurations for generating systemd unit files from OCI image layouts
 type OCIGenConfig struct {
 	ImageLayoutDir string
-	ExtractDir     string
+	ExtractsDir    string
 }
 
 // LoadConfigFromOptions reads from an INI style set of options
@@ -33,8 +33,8 @@ func LoadConfigFromOptions(r io.Reader) (*OCIGenConfig, error) {
 			switch opt.Name {
 			case "imagelayoutdir":
 				cfg.ImageLayoutDir = opt.Value
-			case "extractdir":
-				cfg.ExtractDir = opt.Value
+			case "extractsdir":
+				cfg.ExtractsDir = opt.Value
 			}
 		}
 	}

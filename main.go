@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"vb/oci-systemd-generator/extract"
 
 	"github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/vbatts/oci-systemd-generator/config"
@@ -157,7 +158,7 @@ layoutLoop:
 			log.Printf("expected %q; got %q; skipping ...", v1.MediaTypeImageConfig, manifest.Manifest.Config.MediaType)
 			continue
 		}
-		var config v1.Image
+		var imageConfig v1.Image
 		digestRef := layout.DigestRef{Name: manifest.Manifest.Config.Digest}
 		configFH, err := manifest.Layout.GetBlob(digestRef)
 		if err != nil {
@@ -165,14 +166,35 @@ layoutLoop:
 			continue
 		}
 		dec := json.NewDecoder(configFH)
-		if err := dec.Decode(&config); err != nil {
+		if err := dec.Decode(&imageConfig); err != nil {
 			log.Println(err)
 		}
-		configs = append(configs, &layout.Config{Manifest: &manifest, Layout: manifest.Layout, Ref: manifest.Ref, ImageConfig: &config})
+
+		config := layout.Config{
+			Manifest:    &manifest,
+			Layout:      manifest.Layout,
+			Ref:         manifest.Ref,
+			ImageConfig: &imageConfig,
+		}
+		if config.ExecStart() == "" {
+			log.Printf("[WARN] %s:%s has no Entrypoint/Cmd", manifest.Layout.Name, manifest.Ref)
+			//continue
+		}
+
+		configs = append(configs, &config)
 	}
 	util.Debugf("%#v", configs)
 
 	// If if hasn't beenen extracted, then apply it to same namespace in extractdir.
+	extractedLayouts, err := extract.WalkForExtracts(cfg.ExtractsDir)
+	if err != nil {
+		isErr = true
+		return
+	}
+	for _, layout := range extractedLayouts {
+		fmt.Println(layout)
+	}
+
 	// If it has been extracted, check the config's ExecStart()
 	// then produce a unit file to os.Args[1,2,3]
 
@@ -183,6 +205,7 @@ layoutLoop:
 	if flag.NArg() > 3 {
 		isErr = true
 		err = fmt.Errorf("Expected 3 or fewer paths, but got %d. See SYSTEMD.GENERATOR(7)", flag.NArg())
+		return
 	}
 
 	var dirNormal, dirEarly, dirLate string
