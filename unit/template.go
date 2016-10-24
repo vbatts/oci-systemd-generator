@@ -6,7 +6,9 @@ import (
 	"github.com/coreos/go-systemd/unit"
 )
 
-var DefaultConfig = []*unit.UnitOption{
+// DefaultOptions includes the boiler plate options for generating OCI layout
+// unit files.
+var DefaultOptions = []*unit.UnitOption{
 	&unit.UnitOption{
 		Section: "Unit",
 		Name:    "Description",
