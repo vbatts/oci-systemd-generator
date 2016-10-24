@@ -17,9 +17,9 @@ type Config struct {
 }
 
 // ExecStart provides the command to be executed, like on the ExecStart= option of a systemd unit file.
-func (c Config) ExecStart() (string, error) {
+func (c Config) ExecStart() string {
 	if c.ImageConfig == nil {
-		return "", fmt.Errorf("Config: no ImageConfig present")
+		return ""
 	}
 
 	cmd := []string{}
@@ -35,16 +35,15 @@ func (c Config) ExecStart() (string, error) {
 	// If Entrypoint is set, it is first, and Cmd is appended as args
 	// If Entrypoint is "", then Cmd is the exec
 	// if the result is not absolute, then it needs a shell exec (`/bin/sh -c "args"`) (check for '/bin/sh' existance first?)
-	// if neither are set, then `/sbin/init` (check for '/sbin/init' existance first?)
 
 	if cmd == nil || len(cmd) == 0 {
-		return "/sbin/init", nil
+		return ""
 	}
 
 	// if the command is not an absolute path
 	if !strings.HasPrefix(cmd[0], "/") {
-		return fmt.Sprintf(`/bin/sh -c %q`, strings.Join(cmd, " ")), nil
+		return fmt.Sprintf(`/bin/sh -c %q`, strings.Join(cmd, " "))
 	}
 
-	return strings.Join(cmd, " "), nil
+	return strings.Join(cmd, " ")
 }
