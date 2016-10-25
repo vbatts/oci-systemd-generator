@@ -30,6 +30,13 @@ build: oci-systemd-generator
 oci-systemd-generator: $(SOURCE_FILES)
 	go build -o $@ .
 
+.tmpdir:
+	mktemp -d > $@
+
+run: .tmpdir
+	go run *.go -debug $(shell cat .tmpdir) $(shell cat .tmpdir) $(shell cat .tmpdir)
+
 clean:
-	rm -rf *~ oci-systemd-generator .lint .test .vet
+	rm -rf $(shell cat .tmpdir) ; \
+	rm -rf *~ oci-systemd-generator .lint .test .vet .tmpdir
 

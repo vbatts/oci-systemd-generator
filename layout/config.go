@@ -22,6 +22,7 @@ func (c Config) ExecStart() string {
 	if c.ImageConfig == nil {
 		return ""
 	}
+	// TODO it may be interesting to instead have an annotation, like com.example.systemd.unit.service.execstart=
 
 	cmd := []string{}
 	if c.ImageConfig.Config.Entrypoint != nil || len(c.ImageConfig.Config.Entrypoint) > 0 {
