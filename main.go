@@ -187,12 +187,16 @@ layoutLoop:
 
 	// If if hasn't beenen extracted, then apply it to same namespace in extractdir.
 	extractedLayouts, err := extract.WalkForExtracts(cfg.ExtractsDir)
-	if err != nil {
+	if err != nil && err != extract.ErrNoExtracts {
 		isErr = true
 		return
 	}
-	for _, layout := range extractedLayouts {
-		fmt.Println(layout)
+	if len(extractedLayouts) == 0 {
+		util.Debugf("INFO: there are no extracted layouts")
+	} else {
+		for _, layout := range extractedLayouts {
+			fmt.Println(layout)
+		}
 	}
 
 	// If it has been extracted, check the config's ExecStart()
