@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/vbatts/oci-systemd-generator/extract"
 	"github.com/vbatts/oci-systemd-generator/util"
 )
 
@@ -57,7 +56,7 @@ func (d DigestRef) Sum() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return extract.SumContent(d.HashName(), fh)
+	return util.SumContent(d.HashName(), fh)
 }
 
 // IsValid returns whether the backing blob checksum is the same as the referenced digest.

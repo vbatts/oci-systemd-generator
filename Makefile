@@ -10,7 +10,7 @@ validation: test lint vet
 test: .test
 
 .test: $(SOURCE_FILES)
-	go test ./... && touch $@
+	go test -v ./... && touch $@
 
 .PHONY: lint
 lint: .lint
