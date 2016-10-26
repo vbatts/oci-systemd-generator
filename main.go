@@ -185,7 +185,6 @@ layoutLoop:
 	}
 	util.Debugf("%#v", configs)
 
-	// If if hasn't beenen extracted, then apply it to same namespace in extractdir.
 	extractedLayouts, err := extract.WalkForExtracts(cfg.ExtractsDir)
 	if err != nil && err != extract.ErrNoExtracts {
 		isErr = true
@@ -198,6 +197,7 @@ layoutLoop:
 			fmt.Println(layout)
 		}
 	}
+	// If if hasn't been extracted, then apply it to same namespace in extractdir.
 
 	// If it has been extracted, check the config's ExecStart()
 	// then produce a unit file to os.Args[1,2,3]
