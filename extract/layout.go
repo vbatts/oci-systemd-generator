@@ -1,9 +1,13 @@
 package extract
 
 import (
+	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"github.com/vbatts/oci-systemd-generator/util"
 )
 
 /*
@@ -40,9 +44,15 @@ The /var/lib/oci/extract/ hierarchy is:
 
 */
 type Layout struct {
-	Root string
-	Name string
+	Root     string
+	Name     string
+	HashName string
 }
+
+// DefaultHashName is the name of the hash to use for the calculating the
+// objects in layouts.
+// See util.HashMap.
+var DefaultHashName = "sha256"
 
 // Refs provides the names of the refs, which are themselves symlinks to the
 // corresponding OCI manifest object.
@@ -68,6 +78,65 @@ func (l Layout) GetRef(ref string) (io.ReadCloser, error) {
 		return nil, err
 	}
 	return os.Open(l.refPath(ref))
+}
+
+// SetRef for name `ref` takes a reader. Reader `r` is read and written to it's
+// content addressed mapping, and a symbolic link for `ref` is created pointing
+// to this content addressed data.
+func (l Layout) SetRef(ref string, r io.Reader) error {
+	// using Stat to follow symlink
+	if _, err := os.Stat(l.refPath(ref)); err == nil {
+		return fmt.Errorf("file exists: %q", l.refPath(ref))
+	}
+	if _, ok := util.HashMap[l.HashName]; !ok {
+		return fmt.Errorf("HashName does not exist: %q", l.HashName)
+	}
+
+	tmp, err := l.tmpPath()
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+
+	fh, err := ioutil.TempFile(tmp, "extract-layout.")
+	if err != nil {
+		return err
+	}
+
+	h := util.HashMap[l.HashName].New()
+	tr := io.TeeReader(r, h)
+
+	if _, err := io.Copy(fh, tr); err != nil {
+		fh.Close()
+		return err
+	}
+	if err := fh.Close(); err != nil {
+		return err
+	}
+
+	dest := l.manifestPath(l.HashName, fmt.Sprintf("%x", h.Sum(nil)))
+	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+		return err
+	}
+	if err := os.Rename(fh.Name(), dest); err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(l.refPath(ref)), 0755); err != nil {
+		return err
+	}
+	return os.Symlink(dest, l.refPath(ref))
+}
+
+func (l Layout) tmpPath() (string, error) {
+	if err := os.MkdirAll(filepath.Join(l.Root, "tmp"), 0700); err != nil {
+		return "", err
+	}
+	return ioutil.TempDir(filepath.Join(l.Root, "tmp"), "tmp")
+}
+
+func (l Layout) manifestPath(hashName, sum string) string {
+	return filepath.Join(l.Root, nameManifest, hashName, sum[0:2], sum)
 }
 
 func (l Layout) refPath(ref string) string {
