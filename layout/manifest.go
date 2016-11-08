@@ -35,7 +35,7 @@ func (m *Manifest) Config() (*Config, error) {
 	}
 	defer configFH.Close()
 	dec := json.NewDecoder(configFH)
-	var imageConfig *v1.Image
+	imageConfig := &v1.Image{}
 	if err := dec.Decode(imageConfig); err != nil {
 		return nil, err
 	}

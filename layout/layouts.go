@@ -11,16 +11,6 @@ import (
 	"github.com/vbatts/oci-systemd-generator/util"
 )
 
-// Layouts is a collections OCI image layouts
-type Layouts map[string]*Layout
-
-// Layout is an OCI image layout that includes descriptor refs and the content
-// addressible objects pointed to by the descriptors.
-type Layout struct {
-	Root string
-	Name string
-}
-
 const (
 	nameLayout = "oci-layout"
 	nameBlobs  = "blobs"
@@ -29,26 +19,14 @@ const (
 	digestSeparator = ":"
 )
 
-// GetBlob returns the stream for a blob addressed by it's digest (`sha256:abcde123456...`)
-func (l Layout) GetBlob(digest DigestRef) (io.ReadCloser, error) {
-	path := filepath.Join(l.Root, l.Name, nameBlobs, digestToPath(digest))
-	if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
-		return nil, err
-	}
-	return os.Open(path)
-}
+// Layouts is a collections OCI image layouts
+type Layouts map[string]*Layout
 
-// GetRef loads the descriptor reference for this OCI image
-func (l Layout) GetRef(name string) (*v1.Descriptor, error) {
-	buf, err := ioutil.ReadFile(filepath.Join(l.Root, l.Name, nameRefs, name))
-	if err != nil {
-		return nil, err
-	}
-	var desc v1.Descriptor
-	if err := json.Unmarshal(buf, &desc); err != nil {
-		return nil, err
-	}
-	return &desc, nil
+// Layout is an OCI image layout that includes descriptor refs and the content
+// addressible objects pointed to by the descriptors.
+type Layout struct {
+	Root string
+	Name string
 }
 
 // OCIVersion reads the OCI image layout version for this layout
@@ -69,6 +47,28 @@ func (l Layout) OCIVersion() (string, error) {
 // Refs gives the path to all regular files or symlinks in this layout's "refs" directory
 func (l Layout) Refs() ([]string, error) {
 	return util.FindFilesOrSymlink(filepath.Join(l.Root, l.Name, nameRefs))
+}
+
+// GetRef loads the descriptor reference for this OCI image
+func (l Layout) GetRef(name string) (*v1.Descriptor, error) {
+	buf, err := ioutil.ReadFile(filepath.Join(l.Root, l.Name, nameRefs, name))
+	if err != nil {
+		return nil, err
+	}
+	var desc v1.Descriptor
+	if err := json.Unmarshal(buf, &desc); err != nil {
+		return nil, err
+	}
+	return &desc, nil
+}
+
+// GetBlob returns the stream for a blob addressed by it's digest (`sha256:abcde123456...`)
+func (l Layout) GetBlob(digest DigestRef) (io.ReadCloser, error) {
+	path := filepath.Join(l.Root, l.Name, nameBlobs, digestToPath(digest))
+	if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
+		return nil, err
+	}
+	return os.Open(path)
 }
 
 // Blobs gives the path to all regular files or symlinks in this layout's "blobs" directory

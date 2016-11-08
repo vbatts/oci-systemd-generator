@@ -137,23 +137,6 @@ layoutLoop:
 		}
 	}
 
-	var configs []*layout.Config
-	// For each imagelayout determine if it has been extracted.
-	for _, manifest := range manifests {
-		config, err := manifest.Config()
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		if config.ExecStart() == "" {
-			log.Printf("[WARN] %s:%s has no Entrypoint/Cmd", manifest.Layout.Name, manifest.Ref)
-			//continue
-		}
-
-		configs = append(configs, config)
-	}
-	util.Debugf("%#v", configs)
-
 	extractedLayouts, err := extract.WalkForExtracts(cfg.ExtractsDir)
 	if err != nil && err != extract.ErrNoExtracts {
 		isErr = true
