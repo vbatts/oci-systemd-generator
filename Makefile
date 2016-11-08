@@ -1,7 +1,8 @@
 
-default: validation build
-
+BUILD := oci-systemd-generator
 SOURCE_FILES := $(shell find . -type f -name "*.go")
+
+default: validation build
 
 .PHONY: validation
 validation: test lint vet
@@ -25,9 +26,9 @@ vet: .vet
 	go vet ./... && touch $@
 
 .PHONY: build
-build: oci-systemd-generator
+build: $(BUILD)
 
-oci-systemd-generator: $(SOURCE_FILES)
+$(BUILD): $(SOURCE_FILES)
 	go build -o $@ .
 
 .tmpdir:
@@ -38,5 +39,5 @@ run: validation .tmpdir
 
 clean:
 	rm -rf $(shell cat .tmpdir) ; \
-	rm -rf *~ oci-systemd-generator .lint .test .vet .tmpdir
+	rm -rf *~ $(BUILD) .lint .test .vet .tmpdir
 
