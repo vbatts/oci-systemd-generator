@@ -3,6 +3,8 @@ package extract
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/vbatts/oci-systemd-generator/layout"
 )
 
 // WalkForExtracts walks a rootpath looking for all directories that match an
@@ -51,4 +53,31 @@ func WalkForExtracts(rootpath string) (extracts []Layout, err error) {
 		return nil
 	})
 	return extracts, err
+}
+
+// DetermineNotExtracted returns only the list of manifests that are not
+// present in the provided list of extracted layouts.
+func DetermineNotExtracted(extracts []Layout, manifests []*layout.Manifest) ([]*layout.Manifest, error) {
+	ne := []*layout.Manifest{}
+	for _, manifest := range manifests {
+		found := false
+		for _, el := range extracts {
+			if manifest.Layout.Name != el.Name {
+				continue
+			}
+			eRefs, err := el.Refs()
+			if err != nil {
+				return nil, err
+			}
+			for _, eRef := range eRefs {
+				if manifest.Layout.Name == el.Name && manifest.Ref == eRef {
+					found = true
+				}
+			}
+		}
+		if !found {
+			ne = append(ne, manifest)
+		}
+	}
+	return ne, nil
 }
