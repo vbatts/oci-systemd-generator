@@ -1,0 +1,4 @@
+.lint
+.test
+.vet
+oci-systemd-generator
