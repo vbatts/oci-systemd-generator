@@ -53,6 +53,7 @@ func (rd RootDir) Extract(il layout.Layout) (*Layout, error) {
 		}
 
 		// 2) copy over the manifest to nameManifest dir
+		// This first ref is a descriptor to a manifest
 		desc, err := il.GetRef(ref)
 		if err != nil {
 			return nil, fmt.Errorf("failed getting descriptor for %q", ref)
@@ -76,6 +77,8 @@ func (rd RootDir) Extract(il layout.Layout) (*Layout, error) {
 	}
 
 	// 3) apply the layers referenced to the layer's chanID dir
+	// which will require marshalling the manifest to get the config object
+
 	// 4) symlink to that chainID dir
 	return &el, nil
 }

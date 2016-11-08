@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/vbatts/oci-systemd-generator/util"
@@ -20,62 +19,6 @@ type Layouts map[string]*Layout
 type Layout struct {
 	Root string
 	Name string
-}
-
-// "./sha256/ed2dca7ba0aa32384f2f5560513dbb0325c8e213b75eb662055e8bd1db7ac974" -> "sha256:ed2dca7ba0aa32384f2f5560513dbb0325c8e213b75eb662055e8bd1db7ac974"
-func pathToDigest(path string) *DigestRef {
-	chunks := strings.Split(filepath.Clean(path), "/")
-	if len(chunks) > 1 && chunks[0] == nameBlobs {
-		chunks = chunks[1:]
-	}
-	if len(chunks) != 2 {
-		return nil
-	}
-	return &DigestRef{Name: chunks[0] + digestSeparator + chunks[1]}
-}
-
-// DigestRef for name to digest mapping and validating the blob at the address is
-// actually the expected size.
-type DigestRef struct {
-	Name   string
-	Layout *Layout
-}
-
-// HashName provides just the hash name portion of the digest string (e.g. "sha256:ed2dca..." -> "sha256")
-func (d DigestRef) HashName() string {
-	chunks := strings.SplitN(d.Name, digestSeparator, 2)
-	if len(chunks) != 2 {
-		return ""
-	}
-	return chunks[0]
-}
-
-// Sum calculates the checksum of the backing blob for this digest, with the prescribed hash.
-func (d DigestRef) Sum() (string, error) {
-	fh, err := d.Layout.GetBlob(d)
-	if err != nil {
-		return "", err
-	}
-	return util.SumContent(d.HashName(), fh)
-}
-
-// IsValid returns whether the backing blob checksum is the same as the referenced digest.
-func (d DigestRef) IsValid() (bool, error) {
-	sum, err := d.Sum()
-	if err != nil {
-		return false, err
-	}
-
-	return d.Name == d.HashName()+digestSeparator+sum, nil
-}
-
-// "sha256:ed2dca7ba0aa32384f2f5560513dbb0325c8e213b75eb662055e8bd1db7ac974" -> "./sha256/ed2dca7ba0aa32384f2f5560513dbb0325c8e213b75eb662055e8bd1db7ac974"
-func digestToPath(digest DigestRef) string {
-	chunks := strings.SplitN(digest.Name, digestSeparator, 2)
-	if len(chunks) != 2 {
-		return ""
-	}
-	return filepath.Join(chunks[0], chunks[1])
 }
 
 const (
@@ -125,12 +68,12 @@ func (l Layout) OCIVersion() (string, error) {
 
 // Refs gives the path to all regular files or symlinks in this layout's "refs" directory
 func (l Layout) Refs() ([]string, error) {
-	return findFilesOrSymlink(filepath.Join(l.Root, l.Name, nameRefs))
+	return util.FindFilesOrSymlink(filepath.Join(l.Root, l.Name, nameRefs))
 }
 
 // Blobs gives the path to all regular files or symlinks in this layout's "blobs" directory
 func (l *Layout) Blobs() ([]DigestRef, error) {
-	paths, err := findFilesOrSymlink(filepath.Join(l.Root, l.Name, nameBlobs))
+	paths, err := util.FindFilesOrSymlink(filepath.Join(l.Root, l.Name, nameBlobs))
 	if err != nil {
 		return nil, err
 	}
@@ -144,28 +87,6 @@ func (l *Layout) Blobs() ([]DigestRef, error) {
 		digests = append(digests, *digest)
 	}
 	return digests, nil
-}
-
-func findFilesOrSymlink(basename string) ([]string, error) {
-	files := []string{}
-	err := filepath.Walk(basename, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() || (info.Mode()&os.ModeSymlink) != 0 {
-			return nil
-		}
-		ref, err := filepath.Rel(basename, path)
-		if err != nil {
-			return err
-		}
-		files = append(files, ref)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return files, nil
 }
 
 // WalkForLayouts looks through rootpath for OCI image-layout directories.
