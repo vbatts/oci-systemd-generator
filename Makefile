@@ -33,7 +33,7 @@ oci-systemd-generator: $(SOURCE_FILES)
 .tmpdir:
 	mktemp -d > $@
 
-run: .tmpdir
+run: validation .tmpdir
 	go run *.go -debug $(shell cat .tmpdir) $(shell cat .tmpdir) $(shell cat .tmpdir)
 
 clean:
