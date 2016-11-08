@@ -18,7 +18,7 @@ The attributes of an extracted image ref are:
 - the ref name - derived from the `./<name>/ref` symlink
 - the rootfs directory - derived from the `./<name>/rootfs symlink
 
-The ref is a descriptor pointing to a checksum of a manifest.  Multiple refs
+The ref is a descriptor pointing to a checksum of a config.  Multiple refs
 may point to the same checksum, so citing this per the _checksum_ would be
 cleaner, and then just symlink the <name> and <refname> to a checksummed
 directory.
@@ -29,17 +29,17 @@ The /var/lib/oci/extract/ hierarchy is:
     |     |- sha256/
     |        |- ba/
     |           |- baabaab1acc24ee9/
-    |- manifest/
+    |- configs/
     |  |- sha256/
     |     |- ea/
     |        |- ea7beefea7beefd0ee7
     |- names/
        |- example.com/myapp/
           |- stable/
-          |  |- ref -> ../../../manifest/sha256/ea/ea7beefea7beefd0ee7
+          |  |- ref -> ../../../configs/sha256/ea/ea7beefea7beefd0ee7
           |  |- rootfs -> ../../../dirs/chainID/sha256/ba/baabaab1acc24ee9/
           |- v1.0.0/
-             |- ref -> ../../../manifest/sha256/ea/ea7beefea7beefd0ee7
+             |- ref -> ../../../configs/sha256/ea/ea7beefea7beefd0ee7
              |- rootfs -> ../../../dirs/chainID/sha256/ba/baabaab1acc24ee9/
 
 */
@@ -55,7 +55,7 @@ type Layout struct {
 var DefaultHashName = "sha256"
 
 // Refs provides the names of the refs, which are themselves symlinks to the
-// corresponding OCI manifest object.
+// corresponding OCI image config object.
 //
 // TODO this might better return structs, than just string list?
 func (l Layout) Refs() ([]string, error) {
@@ -71,8 +71,8 @@ func (l Layout) Refs() ([]string, error) {
 	return refs, nil
 }
 
-// GetRef returns a handle to the ref to the OCI manifest. Caller is
-// responsible for closing the handle.
+// GetRef returns a handle to the ref to the OCI image config.
+// Caller is responsible for closing the handle.
 func (l Layout) GetRef(ref string) (io.ReadCloser, error) {
 	if _, err := os.Stat(l.refPath(ref)); err != nil && os.IsNotExist(err) {
 		return nil, err
@@ -136,7 +136,7 @@ func (l Layout) tmpPath() (string, error) {
 }
 
 func (l Layout) manifestPath(hashName, sum string) string {
-	return filepath.Join(l.Root, nameManifest, hashName, sum[0:2], sum)
+	return filepath.Join(l.Root, nameConfigs, hashName, sum[0:2], sum)
 }
 
 func (l Layout) refPath(ref string) string {

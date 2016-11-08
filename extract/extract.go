@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/vbatts/oci-systemd-generator/layout"
 )
 
@@ -52,28 +51,24 @@ func (rd RootDir) Extract(il layout.Layout) (*Layout, error) {
 			return nil, fmt.Errorf("error preparing %s/%s: %s", il.Name, ref, err)
 		}
 
-		// 2) copy over the manifest to nameManifest dir
+		// 2) copy over the manifest's config to nameConfigs dir
 		// This first ref is a descriptor to a manifest
 		desc, err := il.GetRef(ref)
 		if err != nil {
 			return nil, fmt.Errorf("failed getting descriptor for %q", ref)
 		}
-		if desc.MediaType != v1.MediaTypeImageManifest && desc.MediaType != v1.MediaTypeImageManifestList {
-			continue
-		}
-		if desc.MediaType == v1.MediaTypeImageManifestList {
-			// TODO: add support for manifest list
-			continue
-		}
-
-		manifestFH, err := il.GetBlob(layout.DigestRef{Name: desc.Digest})
+		manifest, err := layout.ManifestFromDescriptor(&il, desc)
 		if err != nil {
-			return nil, fmt.Errorf("failed getting manifest for %q", ref)
-		}
-		if err := el.SetRef(ref, manifestFH); err != nil {
 			return nil, err
 		}
-		manifestFH.Close()
+		configFH, err := manifest.ConfigReader()
+		if err != nil {
+			return nil, err
+		}
+		if err := el.SetRef(ref, configFH); err != nil {
+			return nil, err
+		}
+		configFH.Close()
 	}
 
 	// 3) apply the layers referenced to the layer's chanID dir
@@ -89,7 +84,7 @@ func (rd RootDir) Extract(il layout.Layout) (*Layout, error) {
 var ErrNoExtracts = errors.New("extracts directory not populated")
 
 func populateRootDir(rootpath string, perm os.FileMode) error {
-	for _, path := range []string{nameNames, nameManifest, nameChainIDDir} {
+	for _, path := range []string{nameNames, nameConfigs, nameChainIDDir} {
 		if err := os.MkdirAll(filepath.Join(rootpath, path), perm); err != nil {
 			return err
 		}
@@ -98,7 +93,7 @@ func populateRootDir(rootpath string, perm os.FileMode) error {
 }
 
 func checkBasicRootDir(rootpath string) error {
-	for _, path := range []string{nameNames, nameManifest, nameChainIDDir} {
+	for _, path := range []string{nameNames, nameConfigs, nameChainIDDir} {
 		_, err := os.Stat(filepath.Join(rootpath, path))
 		if err != nil && os.IsNotExist(err) {
 			return ErrNoExtracts

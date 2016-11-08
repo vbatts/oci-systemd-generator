@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -10,7 +9,6 @@ import (
 	"strings"
 	"vb/oci-systemd-generator/extract"
 
-	"github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/vbatts/oci-systemd-generator/config"
 	"github.com/vbatts/oci-systemd-generator/layout"
 	"github.com/vbatts/oci-systemd-generator/util"
@@ -83,7 +81,7 @@ func main() {
 	}
 
 	// Check all the layouts available
-	manifests := []layout.Manifest{}
+	manifests := []*layout.Manifest{}
 layoutLoop:
 	for name, l := range layouts {
 		// Check the OCI layout version
@@ -125,63 +123,34 @@ layoutLoop:
 				continue
 			}
 			util.Debugf("\t\t%s: %#v", ref, desc)
-			if desc.MediaType != v1.MediaTypeImageManifest && desc.MediaType != v1.MediaTypeImageManifestList {
-				log.Printf("%q: unsupported Medatype %q, skipping", ref, desc.MediaType)
-				break
-			}
-			if desc.MediaType == v1.MediaTypeImageManifestList {
-				log.Println("TODO: add support for manifest list")
-				continue
-			}
-			manifestFH, err := l.GetBlob(layout.DigestRef{Name: desc.Digest})
+			manifest, err := layout.ManifestFromDescriptor(l, desc)
 			if err != nil {
-				log.Println(err)
+				if err == layout.ErrUnsupportedMediaType {
+					log.Println(err)
+					continue
+				}
+				log.Printf("%q: %s", ref, err)
 				break
 			}
-			manifest := v1.Manifest{}
-			dec := json.NewDecoder(manifestFH)
-			if err := dec.Decode(&manifest); err != nil {
-				log.Println(err)
-				manifestFH.Close()
-				break
-			}
-			manifestFH.Close()
-			util.Debugf("%#v", manifest)
-			manifests = append(manifests, layout.Manifest{Layout: l, Ref: ref, Manifest: &manifest})
+			manifest.Ref = ref
+			manifests = append(manifests, manifest)
 		}
 	}
 
 	var configs []*layout.Config
 	// For each imagelayout determine if it has been extracted.
 	for _, manifest := range manifests {
-		if manifest.Manifest.Config.MediaType != v1.MediaTypeImageConfig {
-			log.Printf("expected %q; got %q; skipping ...", v1.MediaTypeImageConfig, manifest.Manifest.Config.MediaType)
-			continue
-		}
-		var imageConfig v1.Image
-		digestRef := layout.DigestRef{Name: manifest.Manifest.Config.Digest}
-		configFH, err := manifest.Layout.GetBlob(digestRef)
+		config, err := manifest.Config()
 		if err != nil {
 			log.Println(err)
 			continue
-		}
-		dec := json.NewDecoder(configFH)
-		if err := dec.Decode(&imageConfig); err != nil {
-			log.Println(err)
-		}
-
-		config := layout.Config{
-			Manifest:    &manifest,
-			Layout:      manifest.Layout,
-			Ref:         manifest.Ref,
-			ImageConfig: &imageConfig,
 		}
 		if config.ExecStart() == "" {
 			log.Printf("[WARN] %s:%s has no Entrypoint/Cmd", manifest.Layout.Name, manifest.Ref)
 			//continue
 		}
 
-		configs = append(configs, &config)
+		configs = append(configs, config)
 	}
 	util.Debugf("%#v", configs)
 
