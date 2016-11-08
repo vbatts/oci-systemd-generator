@@ -149,7 +149,26 @@ layoutLoop:
 			fmt.Println(layout)
 		}
 	}
+
 	// If if hasn't been extracted, then apply it to same namespace in extractdir.
+	for _, manifest := range manifests {
+		for _, el := range extractedLayouts {
+			if manifest.Layout.Name != el.Name {
+				continue
+			}
+			eRefs, err := el.Refs()
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			for _, eRef := range eRefs {
+				if manifest.Layout.Name == el.Name && manifest.Ref == eRef {
+					log.Printf("%s/%s already extracted", el.Name, eRef)
+				}
+				// XXX
+			}
+		}
+	}
 
 	// If it has been extracted, check the config's ExecStart()
 	// then produce a unit file to os.Args[1,2,3]

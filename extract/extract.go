@@ -3,9 +3,11 @@ package extract
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
+	"github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/vbatts/oci-systemd-generator/layout"
 )
 
@@ -74,7 +76,12 @@ func (rd RootDir) Extract(il layout.Layout) (*Layout, error) {
 	// 3) apply the layers referenced to the layer's chanID dir
 	// which will require marshalling the manifest to get the config object
 
+	// XXX
+
 	// 4) symlink to that chainID dir
+
+	// XXX
+
 	return &el, nil
 }
 
@@ -102,6 +109,17 @@ func checkBasicRootDir(rootpath string) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// ApplyImageLayer extracts the typed stream to destpath.
+// For OCI image layer, this means accommodating the whiteout file entries as well.
+// When applying uid/gid, it will attempt to chown the file if EPERM will default to current uid/gid.
+func ApplyImageLayer(mediatype string, r io.Reader, destpath string) error {
+	if mediatype != v1.MediaTypeImageLayer || mediatype != v1.MediaTypeImageLayerNonDistributable {
+		return layout.ErrUnsupportedMediaType
+	}
+	// XXX
 	return nil
 }
 
