@@ -9,14 +9,14 @@ import (
 
 // WalkForExtracts walks a rootpath looking for all directories that match an
 // extracted OCI image reference.
-func WalkForExtracts(rootpath string) (extracts []Layout, err error) {
+func WalkForExtracts(rootpath string) (extracts []*Layout, err error) {
 	namespath := filepath.Join(rootpath, nameNames)
 	if _, err := os.Stat(namespath); err != nil && os.IsNotExist(err) {
 		return nil, ErrNoExtracts
 	} else if err != nil {
 		return nil, err
 	}
-	extracts = []Layout{}
+	extracts = []*Layout{}
 	err = filepath.Walk(namespath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -49,7 +49,7 @@ func WalkForExtracts(rootpath string) (extracts []Layout, err error) {
 		if err != nil {
 			return err
 		}
-		extracts = append(extracts, Layout{Root: rootpath, Name: l})
+		extracts = append(extracts, &Layout{Root: rootpath, Name: l})
 		return nil
 	})
 	return extracts, err
@@ -57,7 +57,7 @@ func WalkForExtracts(rootpath string) (extracts []Layout, err error) {
 
 // DetermineNotExtracted returns only the list of manifests that are not
 // present in the provided list of extracted layouts.
-func DetermineNotExtracted(extracts []Layout, manifests []*layout.Manifest) ([]*layout.Manifest, error) {
+func DetermineNotExtracted(extracts []*Layout, manifests []*layout.Manifest) ([]*layout.Manifest, error) {
 	ne := []*layout.Manifest{}
 	for _, manifest := range manifests {
 		found := false

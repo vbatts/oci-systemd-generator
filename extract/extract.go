@@ -34,44 +34,31 @@ type RootDir struct {
 	Path string
 }
 
-// Extract an OCI image layout
-func (rd RootDir) Extract(il layout.Layout) (*Layout, error) {
+// Extract an OCI image manifest and its layers to the provided rootpath directory
+func Extract(rootpath string, m *layout.Manifest) (*Layout, error) {
 	// 1) mkdir for the layout name, and ref name
-	if il.Name == "" {
+	if m.Layout.Name == "" {
 		return nil, fmt.Errorf("image layout name cannot be empty")
 	}
 	el := Layout{
-		Root: rd.Path,
-		Name: il.Name,
+		Root:     rootpath,
+		Name:     m.Layout.Name,
+		HashName: DefaultHashName,
 	}
-	refs, err := il.Refs()
+	if err := os.MkdirAll(el.refPath(m.Ref), os.FileMode(0755)); err != nil {
+		return nil, fmt.Errorf("error preparing %s/%s: %s", el.Name, m.Ref, err)
+	}
+
+	// 2) copy over the manifest's config to nameConfigs dir
+	// This first ref is a descriptor to a manifest
+	configFH, err := m.ConfigReader()
 	if err != nil {
 		return nil, err
 	}
-	for _, ref := range refs {
-		if err := os.MkdirAll(el.refPath(ref), os.FileMode(0755)); err != nil {
-			return nil, fmt.Errorf("error preparing %s/%s: %s", il.Name, ref, err)
-		}
-
-		// 2) copy over the manifest's config to nameConfigs dir
-		// This first ref is a descriptor to a manifest
-		desc, err := il.GetRef(ref)
-		if err != nil {
-			return nil, fmt.Errorf("failed getting descriptor for %q", ref)
-		}
-		manifest, err := layout.ManifestFromDescriptor(&il, desc)
-		if err != nil {
-			return nil, err
-		}
-		configFH, err := manifest.ConfigReader()
-		if err != nil {
-			return nil, err
-		}
-		if err := el.SetRef(ref, configFH); err != nil {
-			return nil, err
-		}
-		configFH.Close()
+	if err := el.SetRef(m.Ref, configFH); err != nil {
+		return nil, err
 	}
+	configFH.Close()
 
 	// 3) apply the layers referenced to the layer's chanID dir
 	// which will require marshalling the manifest to get the config object
