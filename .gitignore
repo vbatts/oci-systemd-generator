@@ -1,4 +1,5 @@
 .lint
 .test
 .vet
+.tmpdir
 oci-systemd-generator
