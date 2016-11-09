@@ -21,11 +21,10 @@ var (
 )
 
 func main() {
-	var isErr bool
-	var err error
+	var finalErr error
 	defer func() {
-		if isErr {
-			log.Println("ERROR: ", err)
+		if finalErr != nil {
+			log.Println("ERROR:", finalErr)
 			os.Exit(1)
 		}
 	}()
@@ -38,8 +37,8 @@ func main() {
 	}
 
 	if *flGenerate {
-		if _, err = os.Stdout.WriteString(config.DefaultConfig); err != nil {
-			isErr = true
+		if _, err := os.Stdout.WriteString(config.DefaultConfig); err != nil {
+			finalErr = err
 			return
 		}
 		return
@@ -47,9 +46,9 @@ func main() {
 
 	var cfg *config.OCIGenConfig
 	// load default config
-	cfg, err = config.LoadConfigFromOptions(strings.NewReader(config.DefaultConfig))
+	cfg, err := config.LoadConfigFromOptions(strings.NewReader(config.DefaultConfig))
 	if err != nil {
-		isErr = true
+		finalErr = err
 		return
 	}
 	// don't fail if the provided config file path does not exist, just use the DefaultConfig
@@ -58,13 +57,13 @@ func main() {
 			var fh *os.File
 			fh, err = os.Open(*flConfig)
 			if err != nil {
-				isErr = true
+				finalErr = err
 				return
 			}
 			cfg, err = config.LoadConfigFromOptions(fh)
 			if err != nil {
 				fh.Close()
-				isErr = true
+				finalErr = err
 				return
 			}
 			fh.Close()
@@ -76,7 +75,7 @@ func main() {
 	var layouts layout.Layouts
 	layouts, err = layout.WalkForLayouts(cfg.ImageLayoutDir)
 	if err != nil {
-		isErr = true
+		finalErr = err
 		return
 	}
 
@@ -139,18 +138,25 @@ layoutLoop:
 
 	extractedLayouts, err := extract.WalkForExtracts(cfg.ExtractsDir)
 	if err != nil && err != extract.ErrNoExtracts {
-		isErr = true
+		finalErr = err
 		return
 	}
 
 	// If if hasn't been extracted, then apply it to same namespace in extractdir.
 	toBeExtracted, err := extract.DetermineNotExtracted(extractedLayouts, manifests)
 	if err != nil {
-		isErr = true
+		finalErr = err
 		return
 	}
 	util.Debugf("%d to be extracted", len(toBeExtracted))
-	// XXX
+	for _, m := range toBeExtracted {
+		layout, err := extract.Extract(cfg.ExtractsDir, m)
+		if err != nil {
+			finalErr = err
+			return
+		}
+		extractedLayouts = append(extractedLayouts, layout)
+	}
 
 	// If it has been extracted, check the config's ExecStart()
 	// then produce a unit file to os.Args[1,2,3]
@@ -160,8 +166,7 @@ layoutLoop:
 		return
 	}
 	if flag.NArg() > 3 {
-		isErr = true
-		err = fmt.Errorf("Expected 3 or fewer paths, but got %d. See SYSTEMD.GENERATOR(7)", flag.NArg())
+		finalErr = fmt.Errorf("Expected 3 or fewer paths, but got %d. See SYSTEMD.GENERATOR(7)", flag.NArg())
 		return
 	}
 
