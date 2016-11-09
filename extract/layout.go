@@ -125,6 +125,7 @@ func (l Layout) SetRef(ref string, r io.Reader) error {
 	if err := os.MkdirAll(filepath.Dir(l.refPath(ref)), 0755); err != nil {
 		return err
 	}
+	// TODO rather than explicit paths, this would be nice to symlink to ../../../configs/sha256/fc/fc744f333c05dd872a52509e0e4b9da7eed14d7a4d7df1f21fb6f2f3b16d31b4
 	return os.Symlink(dest, l.refPath(ref))
 }
 

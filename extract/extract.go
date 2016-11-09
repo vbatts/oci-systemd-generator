@@ -45,7 +45,7 @@ func Extract(rootpath string, m *layout.Manifest) (*Layout, error) {
 		Name:     m.Layout.Name,
 		HashName: DefaultHashName,
 	}
-	if err := os.MkdirAll(el.refPath(m.Ref), os.FileMode(0755)); err != nil {
+	if err := os.MkdirAll(filepath.Dir(el.refPath(m.Ref)), os.FileMode(0755)); err != nil {
 		return nil, fmt.Errorf("error preparing %s/%s: %s", el.Name, m.Ref, err)
 	}
 
