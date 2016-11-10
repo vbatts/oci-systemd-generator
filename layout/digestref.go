@@ -23,8 +23,17 @@ func (d DigestRef) HashName() string {
 	return chunks[0]
 }
 
-// Sum calculates the checksum of the backing blob for this digest, with the prescribed hash.
-func (d DigestRef) Sum() (string, error) {
+// Sum provides the hexadecimal portion of the digest string
+func (d DigestRef) Sum() string {
+	chunks := strings.SplitN(d.Name, digestSeparator, 2)
+	if len(chunks) != 2 {
+		return ""
+	}
+	return chunks[1]
+}
+
+// Calculate the checksum of the backing blob for this digest, with the prescribed hash.
+func (d DigestRef) Calculate() (string, error) {
 	fh, err := d.Layout.GetBlob(d)
 	if err != nil {
 		return "", err
@@ -34,7 +43,7 @@ func (d DigestRef) Sum() (string, error) {
 
 // IsValid returns whether the backing blob checksum is the same as the referenced digest.
 func (d DigestRef) IsValid() (bool, error) {
-	sum, err := d.Sum()
+	sum, err := d.Calculate()
 	if err != nil {
 		return false, err
 	}

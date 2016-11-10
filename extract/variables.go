@@ -3,7 +3,7 @@ package extract
 import "path/filepath"
 
 var (
-	nameRef        = "ref"
+	nameRef        = "config"
 	nameRootfs     = "rootfs"
 	nameNames      = "names"
 	nameConfigs    = "configs"

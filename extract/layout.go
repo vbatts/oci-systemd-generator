@@ -86,7 +86,7 @@ func (l Layout) GetRef(ref string) (io.ReadCloser, error) {
 func (l Layout) SetRef(ref string, r io.Reader) error {
 	// using Stat to follow symlink
 	if _, err := os.Stat(l.refPath(ref)); err == nil {
-		return fmt.Errorf("file exists: %q", l.refPath(ref))
+		return os.ErrExist
 	}
 	if _, ok := util.HashMap[l.HashName]; !ok {
 		return fmt.Errorf("HashName does not exist: %q", l.HashName)
@@ -114,7 +114,7 @@ func (l Layout) SetRef(ref string, r io.Reader) error {
 		return err
 	}
 
-	dest := l.manifestPath(l.HashName, fmt.Sprintf("%x", h.Sum(nil)))
+	dest := l.configPath(l.HashName, fmt.Sprintf("%x", h.Sum(nil)))
 	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 		return err
 	}
@@ -125,8 +125,14 @@ func (l Layout) SetRef(ref string, r io.Reader) error {
 	if err := os.MkdirAll(filepath.Dir(l.refPath(ref)), 0755); err != nil {
 		return err
 	}
-	// TODO rather than explicit paths, this would be nice to symlink to ../../../configs/sha256/fc/fc744f333c05dd872a52509e0e4b9da7eed14d7a4d7df1f21fb6f2f3b16d31b4
-	return os.Symlink(dest, l.refPath(ref))
+	// TODO rather than explicit paths, this would be nice to symlink to
+	// ../../../configs/sha256/fc/fc744f333c05dd872a52509e0e4b9da7eed14d7a4d7df1f21fb6f2f3b16d31b4
+	if _, err := os.Lstat(l.refPath(ref)); err != nil && os.IsNotExist(err) {
+		if err := os.Symlink(dest, l.refPath(ref)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (l Layout) tmpPath() (string, error) {
@@ -136,10 +142,15 @@ func (l Layout) tmpPath() (string, error) {
 	return ioutil.TempDir(filepath.Join(l.Root, "tmp"), "tmp")
 }
 
-func (l Layout) manifestPath(hashName, sum string) string {
+func (l Layout) chainIDPath(hashName, sum string) string {
+	return filepath.Join(l.Root, nameChainIDDir, hashName, sum[0:2], sum)
+}
+func (l Layout) configPath(hashName, sum string) string {
 	return filepath.Join(l.Root, nameConfigs, hashName, sum[0:2], sum)
 }
-
+func (l Layout) rootfsPath(ref string) string {
+	return filepath.Join(l.Root, nameNames, l.Name, ref, nameRootfs)
+}
 func (l Layout) refPath(ref string) string {
 	return filepath.Join(l.Root, nameNames, l.Name, ref, nameRef)
 }
