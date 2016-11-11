@@ -18,7 +18,7 @@ The attributes of an extracted image ref are:
 - the ref name - derived from the `./<name>/ref` symlink
 - the rootfs directory - derived from the `./<name>/rootfs symlink
 
-The ref is a descriptor pointing to a checksum of a config.  Multiple refs
+The config is a descriptor pointing to a checksum of a config.  Multiple refs
 may point to the same checksum, so citing this per the _checksum_ would be
 cleaner, and then just symlink the <name> and <refname> to a checksummed
 directory.
@@ -36,10 +36,10 @@ The /var/lib/oci/extract/ hierarchy is:
     |- names/
        |- example.com/myapp/
           |- stable/
-          |  |- ref -> ../../../configs/sha256/ea/ea7beefea7beefd0ee7
+          |  |- config -> ../../../configs/sha256/ea/ea7beefea7beefd0ee7
           |  |- rootfs -> ../../../dirs/chainID/sha256/ba/baabaab1acc24ee9/
           |- v1.0.0/
-             |- ref -> ../../../configs/sha256/ea/ea7beefea7beefd0ee7
+             |- config -> ../../../configs/sha256/ea/ea7beefea7beefd0ee7
              |- rootfs -> ../../../dirs/chainID/sha256/ba/baabaab1acc24ee9/
 
 */

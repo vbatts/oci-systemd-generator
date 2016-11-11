@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/vbatts/oci-systemd-generator/layout"
@@ -143,6 +144,10 @@ func ApplyImageLayer(destpath string, mediatype string, r io.Reader) error {
 	if mediatype != v1.MediaTypeImageLayer && mediatype != v1.MediaTypeImageLayerNonDistributable {
 		return layout.ErrUnsupportedMediaType
 	}
+
+	// for good measure
+	destpath = filepath.Clean(destpath)
+
 	// Both of the above checked mediatypes are gzip compressed.
 	gz, err := gzip.NewReader(r)
 	if err != nil {
@@ -152,7 +157,8 @@ func ApplyImageLayer(destpath string, mediatype string, r io.Reader) error {
 	// gz is now the tar stream
 	tr := tar.NewReader(gz)
 
-	var sum int64
+	whiteouts := map[string]interface{}{}
+	filepaths := map[string]interface{}{}
 	for {
 		hdr, err := tr.Next()
 		if err != nil && err == io.EOF {
@@ -160,25 +166,178 @@ func ApplyImageLayer(destpath string, mediatype string, r io.Reader) error {
 		} else if err != nil {
 			return err
 		}
+		hdr.Name = filepath.Clean(hdr.Name)
 		if escapedPath(destpath, hdr.Name) {
-			util.Debugf("%q attempts to escape %q!!", hdr.Name, destpath)
-			return ErrPathEscapes
+			util.Debugf("%q attempts to escape %q!! Skipping", hdr.Name, destpath)
+			//return ErrPathEscapes
+			continue
 		}
 		if hdr.Linkname != "" {
 			linkpath := filepath.Join(filepath.Dir(hdr.Name), hdr.Linkname)
 			if escapedPath(destpath, linkpath) {
 				util.Debugf("%q -> %q attempts to escape %q!!", hdr.Name, hdr.Linkname, destpath)
-				return ErrPathEscapes
+				//return ErrPathEscapes
+
+				// TODO experiment with this idea?
+				//hdr.Linkname = "/dev/null"
+				//hdr.Typeflag = tar.TypeSymlink
+				// XXX this is not right. It can chmod /dev/null on the host?
+				continue
+			}
+		}
+		if strings.HasPrefix(filepath.Base(hdr.Name), whiteoutPrefix) {
+			whiteouts[hdr.Name] = nil
+			// delete all at the whiteout path _except_ the filepaths that have
+			// been extracted so far.
+			pathToDelete := pathFromWhiteout(hdr.Name)
+			if pathToDelete == "" {
+				continue
+			}
+			err := filepath.Walk(filepath.Join(destpath, pathToDelete), func(p string, info os.FileInfo, err error) error {
+				if err != nil {
+					if os.IsNotExist(err) {
+						return nil
+					}
+					return err
+				}
+				if _, exists := filepaths[p]; !exists {
+					if err := os.RemoveAll(p); err != nil && !os.IsNotExist(err) {
+						return err
+					}
+					//fmt.Printf("DELETE %q\n", p)
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+
+			continue
+		}
+
+		// First ensure that the directory of this entry exists
+		dirpath := filepath.Join(destpath, filepath.Dir(hdr.Name))
+		if _, err := os.Lstat(dirpath); err != nil && os.IsNotExist(err) {
+			// Assuming a default mode. When/if this directories entry is encountered, we'll chmod it.
+			if err := os.MkdirAll(dirpath, os.FileMode(0755)); err != nil {
+				return err
+			}
+		}
+		entrypath := filepath.Join(destpath, hdr.Name)
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if _, err := os.Lstat(entrypath); err != nil && os.IsNotExist(err) {
+				// Assuming a default mode. When/if this directories entry is encountered, we'll chmod it.
+				if err := os.MkdirAll(entrypath, os.FileMode(hdr.Mode)); err != nil {
+					// should fail
+					return err
+				}
+			}
+		case tar.TypeFifo:
+			if err := os.Remove(entrypath); err != nil && !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "failed to remove %q\n", entrypath)
+			}
+			if syscall.Mkfifo(entrypath, uint32(hdr.Mode)); err != nil {
+				// should fail
+				return err
+			}
+		case tar.TypeChar:
+			if err := os.Remove(entrypath); err != nil && !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "failed to remove %q\n", entrypath)
+			}
+			// should not fail
+			if err := syscall.Mknod(entrypath, syscall.S_IFCHR, mkdev(hdr.Devmajor, hdr.Devminor)); err != nil {
+				fmt.Fprintf(os.Stderr, "%q failed to mknod: %s\n", entrypath, err)
+			}
+		case tar.TypeBlock:
+			if err := os.Remove(entrypath); err != nil && !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "failed to remove %q\n", entrypath)
+			}
+			// should not fail
+			if err := syscall.Mknod(entrypath, syscall.S_IFBLK, mkdev(hdr.Devmajor, hdr.Devminor)); err != nil {
+				fmt.Fprintf(os.Stderr, "%q failed to mknod: %s\n", entrypath, err)
+			}
+		case tar.TypeSymlink:
+			if err := os.Remove(entrypath); err != nil && !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "failed to remove %q\n", entrypath)
+			}
+			// should fail?
+			if err := os.Symlink(hdr.Linkname, entrypath); err != nil {
+				fmt.Fprintf(os.Stderr, "INFO: failed to symlink to %q: %s\n", hdr.Linkname, err)
+			}
+		case tar.TypeLink:
+			if err := os.Remove(entrypath); err != nil && !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "failed to remove %q\n", entrypath)
+			}
+			// should fail? or should just copy from the original?
+			if err := os.Link(hdr.Linkname, entrypath); err != nil {
+				fmt.Fprintf(os.Stderr, "INFO: failed to link to %q: %s\n", hdr.Linkname, err)
+			}
+		case tar.TypeReg:
+			if err := os.Remove(entrypath); err != nil && !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "failed to remove %q\n", entrypath)
+			}
+			fh, err := os.Create(entrypath)
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(fh, tr); err != nil {
+				fh.Close()
+				return err
+			}
+			fh.Close()
+		default:
+			util.Debugf("unknown tar type: %q", hdr.Typeflag)
+		}
+		// these are generic for all types except symlinks
+		// most of these ought not be fatal, but log to stderr
+		if info, err := os.Lstat(entrypath); err == nil && info.Mode()&os.ModeSymlink == 0 {
+			if err := os.Chmod(entrypath, os.FileMode(hdr.Mode)); err != nil {
+				fmt.Fprintf(os.Stderr, "INFO: failed to set mode: %s\n", err)
+			}
+			if err := os.Chown(entrypath, hdr.Uid, hdr.Gid); err != nil {
+				fmt.Fprintf(os.Stderr, "INFO: failed to set owner: %s\n", err)
+			}
+			if err := os.Chtimes(entrypath, hdr.ModTime, hdr.ModTime); err != nil {
+				fmt.Fprintf(os.Stderr, "INFO: failed to set times: %s\n", err)
+			}
+			for k, v := range hdr.Xattrs {
+				if err := syscall.Setxattr(entrypath, k, []byte(v), 0); err != nil {
+					fmt.Fprintf(os.Stderr, "%q failed to set xattr %q: %s\n", entrypath, k, err)
+				}
 			}
 		}
 
-		// XXX whiteouts
-		// XXX actually extract the hdr entry
-
-		sum++
+		// whiteouts. I hate them. Since they are not ordered, and technically
+		// apply to "lower layers", then effective they must be applied first,
+		// regardless of when in this stream they show up.
+		filepaths[hdr.Name] = nil
 	}
-	util.Debugf("  extracted %d files", sum)
+	util.Debugf("  extracted %d files", len(filepaths))
+	if len(whiteouts) > 0 {
+		util.Debugf("   whiteouts: %#v", whiteouts)
+	}
 	return nil
+}
+
+func mkdev(major, minor int64) int {
+	return int(uint32(((minor & 0xfff00) << 12) | ((major & 0xfff) << 8) | (minor & 0xff)))
+}
+
+var whiteoutPrefix = ".wh."
+
+func pathFromWhiteout(path string) string {
+	if filepath.Base(path) == whiteoutPrefix+whiteoutPrefix+".opq" {
+		return filepath.Dir(path)
+	}
+
+	// who knows what to do for .plnk and .aufs ?
+	if strings.Contains(path, whiteoutPrefix+whiteoutPrefix) {
+		return ""
+	}
+
+	// else should only be whiteoutPrefix+<filename>
+	return filepath.Join(filepath.Dir(path), strings.TrimPrefix(filepath.Base(path), whiteoutPrefix))
 }
 
 // ErrPathEscapes is when a path in an archive is attempting to escape the destination path
