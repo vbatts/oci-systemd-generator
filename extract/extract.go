@@ -68,14 +68,14 @@ func Extract(rootpath string, m *layout.Manifest) (*Layout, error) {
 	if err != nil {
 		return nil, err
 	}
-	ref, err := config.ChainID()
+	chainIDRef, err := config.ChainID()
 	if err != nil {
 		return nil, err
 	}
-	destpath := el.chainIDPath(ref.HashName(), ref.Sum())
+	destpath := el.chainIDPath(chainIDRef.HashName(), chainIDRef.Sum())
 	if _, err := os.Stat(destpath); err != nil && os.IsNotExist(err) {
 		if err := os.MkdirAll(destpath, os.FileMode(0755)); err != nil {
-			return nil, fmt.Errorf("error preparing chainID dir for %s/%s: %s", ref.HashName(), ref.Sum(), err)
+			return nil, fmt.Errorf("error preparing chainID dir for %s/%s: %s", chainIDRef.HashName(), chainIDRef.Sum(), err)
 		}
 		// ugh, here we'll have to access the objects in order from the manifest, but
 		// only when they're the right media type.
@@ -90,7 +90,7 @@ func Extract(rootpath string, m *layout.Manifest) (*Layout, error) {
 				}
 				defer brdr.Close()
 
-				util.Debugf("Extracting %q", desc.Digest)
+				util.Debugf("Applying %q to chainID %q", desc.Digest, chainIDRef.Name)
 				err = ApplyImageLayer(destpath, desc.MediaType, brdr)
 				if err != nil && err == layout.ErrUnsupportedMediaType {
 					util.Debugf("%q is unsupported. Skipping...", desc.MediaType)
@@ -109,12 +109,12 @@ func Extract(rootpath string, m *layout.Manifest) (*Layout, error) {
 			}
 		}
 	} else {
-		util.Debugf("%q already exists. Not extracting.", destpath)
+		util.Debugf("chainID %q already exists. Not applying.", chainIDRef.Name)
 	}
 
 	// 4) symlink to that chainID dir
-	if _, err := os.Lstat(el.chainIDPath(ref.HashName(), ref.Sum())); err != nil && os.IsNotExist(err) {
-		if err := os.Symlink(el.chainIDPath(ref.HashName(), ref.Sum()), el.rootfsPath(m.Ref)); err != nil {
+	if _, err := os.Lstat(el.chainIDPath(chainIDRef.HashName(), chainIDRef.Sum())); err != nil && os.IsNotExist(err) {
+		if err := os.Symlink(el.chainIDPath(chainIDRef.HashName(), chainIDRef.Sum()), el.rootfsPath(m.Ref)); err != nil {
 			return nil, err
 		}
 	}
@@ -157,7 +157,7 @@ func ApplyImageLayer(destpath string, mediatype string, r io.Reader) error {
 	// gz is now the tar stream
 	tr := tar.NewReader(gz)
 
-	whiteouts := map[string]interface{}{}
+	whiteouts := []string{}
 	filepaths := map[string]interface{}{}
 	for {
 		hdr, err := tr.Next()
@@ -186,7 +186,7 @@ func ApplyImageLayer(destpath string, mediatype string, r io.Reader) error {
 			}
 		}
 		if strings.HasPrefix(filepath.Base(hdr.Name), whiteoutPrefix) {
-			whiteouts[hdr.Name] = nil
+			whiteouts = append(whiteouts, hdr.Name)
 			// delete all at the whiteout path _except_ the filepaths that have
 			// been extracted so far.
 			pathToDelete := pathFromWhiteout(hdr.Name)
@@ -315,7 +315,7 @@ func ApplyImageLayer(destpath string, mediatype string, r io.Reader) error {
 	}
 	util.Debugf("  extracted %d files", len(filepaths))
 	if len(whiteouts) > 0 {
-		util.Debugf("   whiteouts: %#v", whiteouts)
+		util.Debugf("   whiteouts: %q", whiteouts)
 	}
 	return nil
 }
