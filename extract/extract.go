@@ -270,7 +270,7 @@ func ApplyImageLayer(destpath string, mediatype string, r io.Reader) error {
 				fmt.Fprintf(os.Stderr, "failed to remove %q\n", entrypath)
 			}
 			// should fail? or should just copy from the original?
-			if err := os.Link(hdr.Linkname, entrypath); err != nil {
+			if err := os.Link(filepath.Join(destpath, hdr.Linkname), entrypath); err != nil {
 				fmt.Fprintf(os.Stderr, "INFO: failed to link to %q: %s\n", hdr.Linkname, err)
 			}
 		case tar.TypeReg:
