@@ -3,14 +3,16 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
-	"vb/oci-systemd-generator/extract"
 
 	"github.com/vbatts/oci-systemd-generator/config"
+	"github.com/vbatts/oci-systemd-generator/extract"
 	"github.com/vbatts/oci-systemd-generator/layout"
+	"github.com/vbatts/oci-systemd-generator/unit"
 	"github.com/vbatts/oci-systemd-generator/util"
 )
 
@@ -202,9 +204,39 @@ layoutLoop:
 				return
 			}
 			execStart := config.ExecStart()
+			if execStart == "" {
+				fmt.Printf("[INFO] skipping image %s/%s. Empty ExecStart=\n", el.Name, ref.Name)
+				continue
+			}
+			//fmt.Printf("Name: %q; Ref: %q; ExecStart=: %q\n", el.Name, ref.Name, execStart)
+			units := unit.DefaultOptions[:]
+			u, err := unit.ExecStart(execStart)
+			if err != nil {
+				finalErr = err
+				return
+			}
+			units = append(units, u)
+			u, err = unit.RootDirectory(ref.RootFS())
+			if err != nil {
+				finalErr = err
+				return
+			}
+			units = append(units, u)
 
-			fmt.Printf("Name: %q; Ref: %q; ExecStart=: %q\n", el.Name, ref.Name, execStart)
+			r := unit.Serialize(units)
+			filename := filepath.Join(dirNormal, ref.ReverseDomainNotation()+".service")
+			fh, err := os.Create(filename)
+			if err != nil {
+				finalErr = err
+				return
+			}
+			if _, err := io.Copy(fh, r); err != nil {
+				fh.Close()
+				finalErr = err
+				return
+			}
+			fh.Close()
+			fmt.Printf("wrote %q\n", filename)
 		}
-
 	}
 }

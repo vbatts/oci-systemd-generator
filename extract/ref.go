@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -41,6 +42,36 @@ func (r *Ref) Config() (*Config, error) {
 
 // RootFS provides the path to this extracted image's root filesystem (at least
 // the symlink to the path).
-func (r Ref) RootFS() (string, error) {
-	return r.Layout.rootfsPath(r.Name), nil
+func (r Ref) RootFS() string {
+	return r.Layout.rootfsPath(r.Name)
 }
+
+// ReverseDomainNotation provides a name for this extracted OCI image based on
+// the relative path name of the OCI image layout, and the reference
+// (`./refs/`) name.
+// In the format `$reversedomain.$path.ref.$ref` with the literal word "ref"
+// before the reference name.
+func (r Ref) ReverseDomainNotation() string {
+	var basename, path string
+	if strings.Contains(r.Layout.Name, pathDelimiter) {
+		parts := strings.SplitN(r.Layout.Name, pathDelimiter, 2)
+		basename, path = parts[0], parts[1]
+	} else {
+		basename = r.Layout.Name
+	}
+	if strings.Contains(basename, domainDelimiter) {
+		chunks := strings.Split(basename, domainDelimiter)
+		for i := 0; i < len(chunks)/2; i++ {
+			end := len(chunks) - 1
+			chunks[i], chunks[end-i] = chunks[end-i], chunks[i]
+		}
+		basename = strings.Join(chunks, domainDelimiter)
+	}
+	path = strings.Replace(path, pathDelimiter, domainDelimiter, -1)
+	return strings.Join([]string{basename, path, "ref", r.Name}, domainDelimiter)
+}
+
+var (
+	domainDelimiter = "."
+	pathDelimiter   = "/"
+)

@@ -38,6 +38,12 @@ func ExecStart(cmd string) (*unit.UnitOption, error) {
 	return unit.NewUnitOption("Service", "ExecStart", cmd), nil
 }
 
+// Serialize is a passthrough to github.com/coreos/go-systemd/unit.Serialize
+var Serialize = unit.Serialize
+
+// Deserialize is a passthrough to github.com/coreos/go-systemd/unit.Deserialize
+var Deserialize = unit.Deserialize
+
 var (
 	shellExecTemplate = template.Must(template.New("shellExec").Parse(`/bin/sh -c "{{.}}"`))
 )
