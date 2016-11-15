@@ -9,10 +9,8 @@ import (
 // DefaultConfig is the base for looking at the paths this tool will operate on
 var DefaultConfig = `
 [system]
-imagelayoutdir = /home/vbatts/oci/layouts
-extractsdir = /home/vbatts/oci/extracts
-#imagelayoutdir = /var/lib/oci/imagelayouts
-#extractsdir = /var/lib/oci/extracts
+imagelayoutdir = /var/lib/oci/layouts
+extractsdir = /var/lib/oci/extracts
 `
 
 // OCIGenConfig is the configurations for generating systemd unit files from OCI image layouts

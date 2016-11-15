@@ -12,12 +12,12 @@ func TestConfigLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expect := "/home/vbatts/oci/layouts"
+	expect := "/var/lib/oci/layouts"
 	got := filepath.Clean(cfg.ImageLayoutDir)
 	if got != expect {
 		t.Errorf("expected %q; got %q", expect, got)
 	}
-	expect = "/home/vbatts/oci/extracts"
+	expect = "/var/lib/oci/extracts"
 	got = filepath.Clean(cfg.ExtractsDir)
 	if got != expect {
 		t.Errorf("expected %q; got %q", expect, got)
