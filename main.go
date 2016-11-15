@@ -181,6 +181,30 @@ layoutLoop:
 	if flag.NArg() >= 1 {
 		dirNormal = flag.Args()[0]
 	}
+	util.Debugf("%q %q %q", dirNormal, dirEarly, dirLate)
 
-	fmt.Println(dirNormal, dirEarly, dirLate)
+	// Final loops to render a unit file for each extract layout reference which
+	// has all the required elements.
+	// Required elements are:
+	// 1) name (for .service unit file)
+	// 2) root directory
+	// 3) an ExecStart=
+	for _, el := range extractedLayouts {
+		refs, err := el.Refs()
+		if err != nil {
+			finalErr = err
+			return
+		}
+		for _, ref := range refs {
+			config, err := ref.Config()
+			if err != nil {
+				finalErr = err
+				return
+			}
+			execStart := config.ExecStart()
+
+			fmt.Printf("Name: %q; Ref: %q; ExecStart=: %q\n", el.Name, ref.Name, execStart)
+		}
+
+	}
 }
