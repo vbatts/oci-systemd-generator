@@ -6,54 +6,6 @@ import (
 	"github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-func TestConfig(t *testing.T) {
-	c := Config{
-		ImageConfig: &v1.Image{},
-	}
-
-	cmd := c.ExecStart()
-
-	// Test default
-	expect := ""
-	if cmd != expect {
-		t.Errorf("expected %q; got %q", expect, cmd)
-	}
-
-	// test cmd, with absolute path
-	c.ImageConfig.Config.Cmd = []string{"/usr/bin/tail", "-f", "/dev/null"}
-	cmd = c.ExecStart()
-	expect = `/usr/bin/tail -f /dev/null`
-	if cmd != expect {
-		t.Errorf("expected %q; got %q", expect, cmd)
-	}
-
-	// test cmd, with no absolute path
-	c.ImageConfig.Config.Cmd = []string{"tail", "-f", "/dev/null"}
-	cmd = c.ExecStart()
-	expect = `/bin/sh -c "tail -f /dev/null"`
-	if cmd != expect {
-		t.Errorf("expected %q; got %q", expect, cmd)
-	}
-
-	// test Entrypoint, with no absolute path
-	c.ImageConfig.Config.Entrypoint = []string{"tail", "-f", "/dev/null"}
-	c.ImageConfig.Config.Cmd = nil
-	cmd = c.ExecStart()
-	expect = `/bin/sh -c "tail -f /dev/null"`
-	if cmd != expect {
-		t.Errorf("expected %q; got %q", expect, cmd)
-	}
-
-	// test Entrypoint, with absolute path
-	c.ImageConfig.Config.Entrypoint = []string{"/usr/bin/tail"}
-	c.ImageConfig.Config.Cmd = []string{"-f", "/dev/null"}
-	cmd = c.ExecStart()
-	expect = `/usr/bin/tail -f /dev/null`
-	if cmd != expect {
-		t.Errorf("expected %q; got %q", expect, cmd)
-	}
-}
-
 func TestChainID(t *testing.T) {
 	expect := "sha256:26ab43e7d8f84043e608d1be92d9918a8aa6860489b6f221f29bc49d0081c3c3"
 	c := Config{

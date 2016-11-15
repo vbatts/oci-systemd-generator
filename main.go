@@ -170,6 +170,7 @@ layoutLoop:
 		return
 	}
 
+	// We'll collect all three, but we're only going to use the dirNormal (for now?)
 	var dirNormal, dirEarly, dirLate string
 	if flag.NArg() == 3 {
 		dirLate = flag.Args()[2]

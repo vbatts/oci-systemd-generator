@@ -1,12 +1,15 @@
 package extract
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/vbatts/oci-systemd-generator/util"
 )
 
@@ -51,41 +54,120 @@ type Layout struct {
 
 // DefaultHashName is the name of the hash to use for the calculating the
 // objects in layouts.
+//
 // See util.HashMap.
 var DefaultHashName = "sha256"
 
-// Refs provides the names of the refs, which are themselves symlinks to the
-// corresponding OCI image config object.
-//
-// TODO this might better return structs, than just string list?
-func (l Layout) Refs() ([]string, error) {
+// Refs provides the refs, which contain the symlinks to the corresponding OCI
+// image config object and root filesystem.
+func (l *Layout) Refs() ([]*Ref, error) {
 	// /var/lib/oci/extracts/names/example.com/myapp/stable/ref
 	matches, err := filepath.Glob(l.refPath("*"))
 	if err != nil {
 		return nil, err
 	}
-	refs := make([]string, len(matches))
+	refs := make([]*Ref, len(matches))
 	for i := range matches {
-		refs[i] = filepath.Base(filepath.Dir(matches[i]))
+		refs[i] = &Ref{
+			Name:   filepath.Base(filepath.Dir(matches[i])),
+			Layout: l,
+		}
 	}
 	return refs, nil
 }
 
 // GetRef returns a handle to the ref to the OCI image config.
 // Caller is responsible for closing the handle.
-func (l Layout) GetRef(ref string) (io.ReadCloser, error) {
-	if _, err := os.Stat(l.refPath(ref)); err != nil && os.IsNotExist(err) {
+func (l Layout) GetRef(name string) (io.ReadCloser, error) {
+	if _, err := os.Stat(l.refPath(name)); err != nil && os.IsNotExist(err) {
 		return nil, err
 	}
-	return os.Open(l.refPath(ref))
+	return os.Open(l.refPath(name))
 }
 
-// SetRef for name `ref` takes a reader. Reader `r` is read and written to it's
+// Ref is the ref of an extracted OCI image layout.
+// It consists primarly of a config and rootfs.
+type Ref struct {
+	Name   string
+	Layout *Layout
+}
+
+// ConfigReader provides a file handle to the raw OCI image config for this
+// extracted layout.
+func (r Ref) ConfigReader() (io.ReadCloser, error) {
+	if _, err := os.Stat(r.Layout.refPath(r.Name)); err != nil && os.IsNotExist(err) {
+		return nil, err
+	}
+	return os.Open(r.Layout.refPath(r.Name))
+}
+
+// Config parses the OCI image config for this particular layout reference
+func (r *Ref) Config() (*Config, error) {
+	configFH, err := r.ConfigReader()
+	if err != nil {
+		return nil, err
+	}
+	defer configFH.Close()
+	dec := json.NewDecoder(configFH)
+	imageConfig := &v1.Image{}
+	if err := dec.Decode(imageConfig); err != nil {
+		return nil, err
+	}
+	return &Config{Layout: r.Layout, Ref: r, ImageConfig: imageConfig}, nil
+}
+
+// RootFS provides the path to this extracted image's root filesystem (at least
+// the symlink to the path).
+func (r Ref) RootFS() (string, error) {
+	return r.Layout.rootfsPath(r.Name), nil
+}
+
+// Config is the extracted representation of the OCI image
+type Config struct {
+	Layout      *Layout
+	Ref         *Ref
+	ImageConfig *v1.Image // the actual OCI image config
+}
+
+// ExecStart provides the command to be executed, like on the ExecStart= option of a systemd unit file.
+func (c Config) ExecStart() string {
+	if c.ImageConfig == nil {
+		return ""
+	}
+	// TODO it may be interesting to instead have an annotation, like com.example.systemd.unit.service.execstart=
+
+	cmd := []string{}
+	if c.ImageConfig.Config.Entrypoint != nil || len(c.ImageConfig.Config.Entrypoint) > 0 {
+		cmd = append(cmd, c.ImageConfig.Config.Entrypoint...)
+	}
+	if c.ImageConfig.Config.Cmd != nil || len(c.ImageConfig.Config.Cmd) > 0 {
+		cmd = append(cmd, c.ImageConfig.Config.Cmd...)
+	}
+
+	// c.ImageConfig.Config.Entrypoint
+	// c.ImageConfig.Config.Cmd
+	// If Entrypoint is set, it is first, and Cmd is appended as args
+	// If Entrypoint is "", then Cmd is the exec
+	// if the result is not absolute, then it needs a shell exec (`/bin/sh -c "args"`) (check for '/bin/sh' existance first?)
+
+	if cmd == nil || len(cmd) == 0 {
+		return ""
+	}
+
+	// if the command is not an absolute path
+	if !strings.HasPrefix(cmd[0], "/") {
+		return fmt.Sprintf(`/bin/sh -c %q`, strings.Join(cmd, " "))
+	}
+
+	return strings.Join(cmd, " ")
+}
+
+// SetRefConfig for name `ref` takes a reader. Reader `r` is read and written to it's
 // content addressed mapping, and a symbolic link for `ref` is created pointing
 // to this content addressed data.
-func (l Layout) SetRef(ref string, r io.Reader) error {
+func (l Layout) SetRefConfig(refname string, r io.Reader) error {
 	// using Stat to follow symlink
-	if _, err := os.Stat(l.refPath(ref)); err == nil {
+	if _, err := os.Stat(l.refPath(refname)); err == nil {
 		return os.ErrExist
 	}
 	if _, ok := util.HashMap[l.HashName]; !ok {
@@ -122,13 +204,13 @@ func (l Layout) SetRef(ref string, r io.Reader) error {
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(l.refPath(ref)), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(l.refPath(refname)), 0755); err != nil {
 		return err
 	}
 	// TODO rather than explicit paths, this would be nice to symlink to
 	// ../../../configs/sha256/fc/fc744f333c05dd872a52509e0e4b9da7eed14d7a4d7df1f21fb6f2f3b16d31b4
-	if _, err := os.Lstat(l.refPath(ref)); err != nil && os.IsNotExist(err) {
-		if err := os.Symlink(dest, l.refPath(ref)); err != nil {
+	if _, err := os.Lstat(l.refPath(refname)); err != nil && os.IsNotExist(err) {
+		if err := os.Symlink(dest, l.refPath(refname)); err != nil {
 			return err
 		}
 	}

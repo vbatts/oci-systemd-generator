@@ -70,7 +70,7 @@ func DetermineNotExtracted(extracts []*Layout, manifests []*layout.Manifest) ([]
 				return nil, err
 			}
 			for _, eRef := range eRefs {
-				if manifest.Layout.Name == el.Name && manifest.Ref == eRef {
+				if manifest.Layout.Name == el.Name && manifest.Ref == eRef.Name {
 					found = true
 				}
 			}

@@ -56,7 +56,7 @@ func Extract(rootpath string, m *layout.Manifest) (*Layout, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := el.SetRef(m.Ref, configFH); err != nil && err != os.ErrExist {
+	if err := el.SetRefConfig(m.Ref, configFH); err != nil && err != os.ErrExist {
 		return nil, err
 	}
 	configFH.Close()
